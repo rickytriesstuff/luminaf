@@ -1,6 +1,7 @@
 import {NextResponse} from "next/server";
 import {z} from "zod";
 import {createClient} from "@/lib/supabase/server";
+import {awardPoints} from "@/lib/billing/points";
 import {hasActiveEntitlement,entitlementRequiredResponse} from "@/lib/billing/entitlement";
 const schema=z.object({amount_ml:z.number().int().min(1).max(5000),logged_at:z.string().datetime().optional()});
 export async function GET(request:Request){
@@ -24,5 +25,6 @@ export async function POST(request:Request){
  if(!parsed.success)return NextResponse.json({error:"Water amount is invalid."},{status:400});
  const {data,error}=await supabase.from("water_logs").insert({user_id:user.id,...parsed.data}).select("id,amount_ml,logged_at").single();
  if(error)return NextResponse.json({error:"Unable to save water log."},{status:500});
+ await awardPoints(user.id,1,"water_logged",data.id,8);
  return NextResponse.json({log:data}, {status:201});
 }

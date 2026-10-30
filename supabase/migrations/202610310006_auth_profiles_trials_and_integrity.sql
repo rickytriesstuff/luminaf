@@ -59,3 +59,14 @@ alter table public.meals add constraint meal_macros_nonnegative check(
  (protein_g is null or protein_g>=0) and (carbs_g is null or carbs_g>=0)
  and (fat_g is null or fat_g>=0) and (fiber_g is null or fiber_g>=0)
 );
+
+-- Backfill existing Auth users so the migration is safe for repositories with early testers.
+insert into public.profiles(id,display_name)
+select id,coalesce(nullif(raw_user_meta_data->>'display_name',''),nullif(raw_user_meta_data->>'full_name',''),split_part(coalesce(email,''),'@',1),'Luminaf member')
+from auth.users
+on conflict(id) do nothing;
+
+insert into public.subscriptions(user_id,provider,status,trial_ends_at,current_period_end)
+select id,'stripe','trialing',now()+interval '7 days',now()+interval '7 days'
+from auth.users
+on conflict(user_id) do nothing;

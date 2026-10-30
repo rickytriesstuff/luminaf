@@ -2,7 +2,7 @@ import {expect,test} from "@playwright/test";
 test("dashboard renders core wellness navigation",async({page})=>{
  await page.goto("/");
  await expect(page.getByRole("heading",{name:/your day, in balance/i})).toBeVisible();
- await expect(page.getByRole("link",{name:/habit garden/i})).toBeVisible();
+ await expect(page.getByRole("link",{name:/habit garden/i}).first()).toBeVisible();
  await expect(page.getByRole("link",{name:/nutrition overview/i})).toBeVisible();
  await expect(page.getByRole("link",{name:/luminaf plus/i})).toBeVisible();
 });

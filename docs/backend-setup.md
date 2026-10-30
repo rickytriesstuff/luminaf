@@ -104,3 +104,7 @@ The worker checks enabled reminders in each saved IANA timezone, respects quiet 
 ## Final integration checks
 
 Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run test:e2e`. Exercise the complete auth, export/deletion, webhook and notification flows against a real Supabase project before calling the service production-ready.
+
+
+## Account deletion and billing
+The account deletion API checks for a linked Stripe subscription and cancels it server-side before deleting private meal photos and the Auth user. Configure STRIPE_SECRET_KEY for this path. If Stripe cancellation cannot be confirmed, deletion fails safely and the account remains intact so the user is not left with an untracked active subscription. Users should export their data before permanent deletion.

@@ -21,6 +21,8 @@ export async function POST(request:Request){
   const {error:removeError}=await admin.storage.from("meal-photos").remove(paths);
   if(removeError)return NextResponse.json({error:"Could not remove private photos. Account was not deleted."},{status:500});
  }
+ const {data:remaining,error:remainingError}=await admin.storage.from("meal-photos").list(user.id,{limit:1,offset:0});
+ if(remainingError||remaining?.length)return NextResponse.json({error:"Private photo cleanup is incomplete. Account was not deleted; please retry or contact support."},{status:500});
  const {error}=await admin.auth.admin.deleteUser(user.id);
  if(error)return NextResponse.json({error:"Account deletion failed. Please contact support."},{status:500});
  return NextResponse.json({deleted:true});

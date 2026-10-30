@@ -19,5 +19,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - uses: denoland/setup-deno@v2
+      - run: deno check supabase/functions/push-dispatch/index.ts
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e

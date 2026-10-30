@@ -1,6 +1,7 @@
 import {NextResponse} from "next/server";
 import {z} from "zod";
 import {createClient} from "@/lib/supabase/server";
+import {awardPoints} from "@/lib/billing/points";
 import {hasActiveEntitlement,entitlementRequiredResponse} from "@/lib/billing/entitlement";
 const schema=z.object({habit_id:z.string().uuid()});
 export async function GET(){
@@ -25,5 +26,6 @@ export async function POST(request:Request){
  const {data,error}=await supabase.from("habit_logs").insert({habit_id:habit.id,user_id:user.id}).select("id,habit_id,completed_at").single();
  if(error?.code==="23505")return NextResponse.json({error:"This habit is already checked in today."},{status:409});
  if(error)return NextResponse.json({error:"Unable to save check-in."},{status:500});
+ await awardPoints(user.id,3,"habit_completed",data.id,5);
  return NextResponse.json({checkin:data},{status:201});
 }

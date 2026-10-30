@@ -1,6 +1,6 @@
 import {NextResponse} from "next/server";
 import {z} from "zod";
-import {createClient} from "@/lib/supabase/server";
+import {createClient} from "@/lib/supabase/server";\nimport {hasActiveEntitlement,entitlementRequiredResponse} from "@/lib/billing/entitlement";
 const schema=z.object({habit_id:z.string().uuid()});
 export async function GET(){
  const supabase=await createClient();
@@ -15,7 +15,7 @@ export async function GET(){
 export async function POST(request:Request){
  const supabase=await createClient();
  const {data:{user}}=await supabase.auth.getUser();
- if(!user)return NextResponse.json({error:"Sign in required."},{status:401});
+ if(!user)return NextResponse.json({error:"Sign in required."},{status:401});\n if(!await hasActiveEntitlement(supabase,user.id))return NextResponse.json(entitlementRequiredResponse(),{status:402});
  const parsed=schema.safeParse(await request.json());
  if(!parsed.success)return NextResponse.json({error:"Habit ID is invalid."},{status:400});
  const {data:habit}=await supabase.from("habits").select("id").eq("id",parsed.data.habit_id).eq("user_id",user.id).single();

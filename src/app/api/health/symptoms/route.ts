@@ -1,0 +1,5 @@
+import {NextResponse} from "next/server";
+import {containsEmergencyRedFlag,symptomInputSchema} from "@/lib/health/safety";
+export async function POST(request:Request){const body:unknown=await request.json().catch(()=>null);const parsed=symptomInputSchema.safeParse(body);if(!parsed.success)return NextResponse.json({error:"Please describe your symptoms (3-3000 characters)."},{status:400});if(containsEmergencyRedFlag(parsed.data.symptoms))return NextResponse.json({emergency:true,message:"Your description includes symptoms that may need urgent attention. Contact your local emergency number or go to the nearest emergency department now. Do not wait for an online response."});
+// Fail closed until a vetted, clinically reviewed server-side guidance provider is configured.
+return NextResponse.json({error:"The symptom guidance service is not configured yet.",message:"If symptoms are severe, worsening, or concerning, contact a qualified healthcare professional."},{status:503});}

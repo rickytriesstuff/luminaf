@@ -23,6 +23,6 @@ export async function GET(){
   points:Number(points.data)||0,badges:badges.count||0,
   weight:metrics.data??[],workouts:{sessions:workouts.data?.length??0,minutes:Math.round(workoutMinutes)},
   meals:{entries:meals.data?.length??0,daily_calories:Array.from(mealDays.entries()).map(([date,calories])=>({date,calories}))},
-  habits:{checkins:habits.data?.length??0},sleep:{entries:sleepHours.length,average_hours:sleepHours.length?Number((sleepHours.reduce((a,b)=>a+b,0)/sleepHours.length).toFixed(1)):null,average_quality:sleep.data?.length?Number(((sleep.data.reduce((a,row)=>a+Number(row.quality||0),0))/sleep.data.length).toFixed(1)):null}
+  habits:{checkins:habits.data?.length??0,daily_checkins:Array.from(habitDays.entries()).map(([date,checkins])=>({date,checkins}))},sleep:{entries:sleepHours.length,average_hours:sleepHours.length?Number((sleepHours.reduce((a,b)=>a+b,0)/sleepHours.length).toFixed(1)):null,average_quality:sleep.data?.length?Number(((sleep.data.reduce((a,row)=>a+Number(row.quality||0),0))/sleep.data.length).toFixed(1)):null}
  });
 }

@@ -20,3 +20,25 @@ self.addEventListener("fetch",event=>{
   return response;
  })));
 });
+
+self.addEventListener("push",event=>{
+ let payload={title:"Luminaf",body:"A gentle wellness reminder.",url:"/"};
+ try{if(event.data)payload={...payload,...event.data.json()};}catch{}
+ event.waitUntil(self.registration.showNotification(payload.title||"Luminaf",{
+  body:payload.body||"A gentle wellness reminder.",
+  icon:"/icon.svg",
+  badge:"/icon.svg",
+  tag:"luminaf-reminder",
+  data:{url:payload.url||"/"},
+  renotify:false
+ }));
+});
+self.addEventListener("notificationclick",event=>{
+ event.notification.close();
+ const target=new URL(event.notification.data?.url||"/",self.location.origin).toString();
+ event.waitUntil(self.clients.matchAll({type:"window",includeUncontrolled:true}).then(clients=>{
+  const existing=clients.find(client=>client.url.startsWith(self.location.origin));
+  if(existing){existing.navigate(target);return existing.focus();}
+  return self.clients.openWindow(target);
+ }));
+});

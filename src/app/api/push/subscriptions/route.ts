@@ -2,7 +2,7 @@ import {NextResponse} from "next/server";
 import {z} from "zod";
 import {createClient} from "@/lib/supabase/server";
 const schema=z.object({
- endpoint:z.string().url().refine(value=>value.startsWith("https://"),"Push endpoint must use HTTPS."),
+ endpoint:z.string().url().refine(value=>{try{const url=new URL(value),host=url.hostname.toLowerCase();return url.protocol==="https:"&&(host==="fcm.googleapis.com"||host==="updates.push.services.mozilla.com"||host.endsWith(".push.services.mozilla.com")||host.endsWith(".push.apple.com")||host.endsWith(".notify.windows.com"));}catch{return false;}},"Push endpoint must use a supported browser push service over HTTPS."),
  expirationTime:z.number().nullable().optional(),
  keys:z.object({p256dh:z.string().min(20).max(256),auth:z.string().min(10).max(128)}).strict()
 }).strict();

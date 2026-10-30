@@ -26,7 +26,7 @@ Deno.serve(async request=>{
   if(!error)enqueued++;
   else if(error.code!=="23505")console.error("Reminder enqueue failed",reminder.id,error.message);
  }
- const {data:queue,error:queueError}=await supabase.from("notifications").select("id,user_id,title,body,attempts").in("delivery_status",["queued","failed"]).lte("next_attempt_at",now.toISOString()).lt("attempts",3).limit(100);
+ const {data:queue,error:queueError}=await supabase.rpc("claim_due_notifications",{p_limit:100});
  if(queueError)return Response.json({error:"Unable to load notification queue."},{status:500});
  let delivered=0,failed=0;
  for(const item of (queue??[]) as Delivery[]){
@@ -41,10 +41,10 @@ Deno.serve(async request=>{
    }
   }
   if(successCount){
-   await supabase.from("notifications").update({delivery_status:"delivered",delivered_at:new Date().toISOString(),attempts:item.attempts+1,last_error:null}).eq("id",item.id);
+   await supabase.from("notifications").update({delivery_status:"delivered",delivered_at:new Date().toISOString(),attempts:item.attempts,last_error:null,lease_expires_at:null}).eq("id",item.id);
    delivered++;
   }else{
-   await supabase.from("notifications").update({delivery_status:"failed",attempts:item.attempts+1,last_error:lastError,next_attempt_at:new Date(Date.now()+5*60000).toISOString()}).eq("id",item.id);
+   await supabase.from("notifications").update({delivery_status:"failed",attempts:item.attempts,last_error:lastError,next_attempt_at:new Date(Date.now()+5*60000).toISOString(),lease_expires_at:null}).eq("id",item.id);
    failed++;
   }
  }

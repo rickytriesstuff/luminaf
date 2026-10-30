@@ -35,3 +35,14 @@ test("reminder settings expose opt-in device notifications",async({page})=>{
  await expect(page.getByRole("heading",{name:"Device notifications"})).toBeVisible();
  await expect(page.getByRole("button",{name:"Enable"})).toBeVisible();
 });
+
+test("nutrition overview renders saved-meal analytics",async({page})=>{
+ await page.goto("/nutrition");
+ await expect(page.getByRole("heading",{name:"Nutrition overview"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Seven-day energy"})).toBeVisible();
+});
+test("weekly plan screen offers saved AI plan generation",async({page})=>{
+ await page.goto("/plans");
+ await expect(page.getByRole("heading",{name:"Your weekly plan"})).toBeVisible();
+ await expect(page.getByRole("button",{name:/generate and save my ai plan/i})).toBeVisible();
+});

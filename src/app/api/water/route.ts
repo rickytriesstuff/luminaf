@@ -1,6 +1,7 @@
 import {NextResponse} from "next/server";
 import {z} from "zod";
-import {createClient} from "@/lib/supabase/server";\nimport {hasActiveEntitlement,entitlementRequiredResponse} from "@/lib/billing/entitlement";
+import {createClient} from "@/lib/supabase/server";
+import {hasActiveEntitlement,entitlementRequiredResponse} from "@/lib/billing/entitlement";
 const schema=z.object({amount_ml:z.number().int().min(1).max(5000),logged_at:z.string().datetime().optional()});
 export async function GET(request:Request){
  const supabase=await createClient();
@@ -17,7 +18,8 @@ export async function GET(request:Request){
 export async function POST(request:Request){
  const supabase=await createClient();
  const {data:{user}}=await supabase.auth.getUser();
- if(!user)return NextResponse.json({error:"Sign in required."},{status:401});\n if(!await hasActiveEntitlement(supabase,user.id))return NextResponse.json(entitlementRequiredResponse(),{status:402});
+ if(!user)return NextResponse.json({error:"Sign in required."},{status:401});
+ if(!await hasActiveEntitlement(supabase,user.id))return NextResponse.json(entitlementRequiredResponse(),{status:402});
  const parsed=schema.safeParse(await request.json());
  if(!parsed.success)return NextResponse.json({error:"Water amount is invalid."},{status:400});
  const {data,error}=await supabase.from("water_logs").insert({user_id:user.id,...parsed.data}).select("id,amount_ml,logged_at").single();

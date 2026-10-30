@@ -51,13 +51,16 @@ Migration `202610310004_private_meal_storage_and_ai_limits.sql` creates a privat
 - `GET/PUT /api/reminders`
 - `POST /api/workouts`, `POST /api/sleep`
 - `GET /api/friends`, `POST /api/friends/invite`, `POST /api/friends/accept`
-- `GET /api/billing/status`, `POST /api/billing/checkout`, `POST /api/billing/portal`, and Stripe webhook `POST /api/webhooks/stripe`\n- `GET /api/points` and `GET /api/progress`\n- `GET /api/weather?lat=...&lon=...` (authenticated; browser geolocation is opt-in)\n- `GET /api/account/export` and `POST /api/account/delete`
+- `GET /api/billing/status`, `POST /api/billing/checkout`, `POST /api/billing/portal`, and Stripe webhook `POST /api/webhooks/stripe`
+- `GET /api/points` and `GET /api/progress`
+- `GET /api/weather?lat=...&lon=...` (authenticated; browser geolocation is opt-in)
+- `GET /api/account/export` and `POST /api/account/delete`
 
 Read APIs remain available after expiry. Write APIs check the server-side subscription record and return HTTP 402 when the trial or paid period has expired. User records are retained.
 
 ## Not yet enabled
 
-Stripe checkout/webhooks/customer portal, push delivery and cron scheduling, AI symptom guidance, scheduled personalized plans, data export/deletion workflows and production observability still require implementation and configuration. XP is awarded by a server-only database function after successful user actions, with per-action daily caps and idempotency. The points ledger cannot be written by client sessions. The symptom checker intentionally fails closed until a clinically reviewed provider and escalation protocol are approved. Do not enable it as a diagnostic feature.
+Web Push delivery and cron scheduling, AI symptom guidance, scheduled personalized plans, and production observability still require implementation and configuration. XP is awarded by a server-only database function after successful user actions, with per-action daily caps and idempotency. The points ledger cannot be written by client sessions. The symptom checker intentionally fails closed until a clinically reviewed provider and escalation protocol are approved. Do not enable it as a diagnostic feature.
 
 ## Stripe billing
 

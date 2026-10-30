@@ -74,3 +74,42 @@ Create a recurring monthly Price in Stripe for USD $4.99, then configure:
 Register `https://YOUR_DOMAIN/api/webhooks/stripe` as a Stripe webhook endpoint. Subscribe to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, and `invoice.payment_failed`. The handler verifies the timestamped HMAC signature, applies subscription changes with the server-only Supabase service role, and records processed event IDs for idempotency.
 
 Enable the Stripe Customer Portal in the Stripe Dashboard. Checkout is available after the free trial expires; active subscribers are sent to the portal to manage billing. The database trial record is created at signup, and server-side write APIs enforce the resulting entitlement. Test with Stripe test-mode keys and test cards before switching to live mode.
+
+## Web Push and scheduled reminders
+
+The browser asks for notification permission only when the user presses **Enable** on the Reminder Settings screen. The browser creates a PushSubscription, which is saved under the authenticated user's ID. The service worker displays notifications and opens the app when a notification is tapped.
+
+Generate a VAPID key pair and configure:
+
+- Next.js environment: `VAPID_PUBLIC_KEY`
+- Supabase Edge Function secrets: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, `CRON_SECRET`
+
+Deploy the worker:
+
+```bash
+supabase functions deploy send-reminders --no-verify-jwt
+supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:YOUR_EMAIL CRON_SECRET=...
+```
+
+The function requires the `x-cron-secret` header and should be invoked once per minute. Enable `pg_cron`, `pg_net` and Supabase Vault in the project, store the cron secret in Vault, then schedule the Edge Function. Example SQL (replace the project ref and store the real secret using Vault):
+
+```sql
+create extension if not exists pg_cron with schema pg_catalog;
+create extension if not exists pg_net with schema extensions;
+select cron.schedule(
+  'luminaf-reminders-every-minute',
+  '* * * * *',
+  $$
+  select net.http_post(
+    url := 'https://YOUR_PROJECT_REF.supabase.co/functions/v1/send-reminders',
+    headers := jsonb_build_object(
+      'Content-Type','application/json',
+      'x-cron-secret',(select decrypted_secret from vault.decrypted_secrets where name='luminaf_cron_secret')
+    ),
+    body := '{}'::jsonb
+  );
+  $$
+);
+```
+
+The worker respects each reminder's timezone and quiet hours, deduplicates each scheduled minute, retries failed deliveries up to three times, and removes expired browser subscriptions. Test on HTTPS with a real browser and VAPID credentials before enabling production schedules.

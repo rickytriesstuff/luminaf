@@ -5,7 +5,7 @@ export async function GET(){
  const supabase=await createClient();
  const {data:{user}}=await supabase.auth.getUser();
  if(!user)return NextResponse.json({error:"Sign in to export your data."},{status:401});
- const tables=["body_metrics","meals","meal_items","water_logs","workouts","workout_sets","fitness_plans","sleep_logs","habits","habit_logs","symptom_checks","reminders","notifications","push_subscriptions","points_ledger","badges","subscriptions","friend_invites"];
+ const tables=["body_metrics","meals","meal_items","water_logs","workouts","workout_sets","fitness_plans","sleep_logs","habits","habit_logs","symptom_checks","reminders","notifications","push_subscriptions","points_ledger","badges","subscriptions"];
  const entries=await Promise.all(tables.map(async table=>{
   const {data,error}=await supabase.from(table).select("*").eq("user_id",user.id).limit(5000);
   // Some relationship tables use inviter_id rather than user_id and are exported separately below.

@@ -24,3 +24,14 @@ test("PWA manifest is served",async({request})=>{
  expect(manifest.name).toBe("Luminaf");
  expect(manifest.display).toBe("standalone");
 });
+
+test("notification center renders its inbox",async({page})=>{
+ await page.goto("/notifications");
+ await expect(page.getByRole("heading",{name:"Notifications"})).toBeVisible();
+});
+test("reminder settings expose opt-in device notifications",async({page})=>{
+ await page.goto("/reminders");
+ await expect(page.getByRole("heading",{name:"Reminder settings"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Device notifications"})).toBeVisible();
+ await expect(page.getByRole("button",{name:"Enable"})).toBeVisible();
+});

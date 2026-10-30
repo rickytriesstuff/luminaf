@@ -28,7 +28,8 @@ export async function POST(request:Request){
  const validated=planSchema.safeParse(decoded);
  if(!validated.success)return NextResponse.json({error:"The generated plan did not pass safety and format checks. Please try again."},{status:502});
  const days=[...validated.data.days].sort((a,b)=>a.day-b.day);
- if(days.some((day,index)=>day.day!==index+1)||days.filter(day=>day.intensity!=="rest").length>input.days_per_week||!days.some(day=>day.intensity==="rest")||days.some(day=>day.duration_minutes>input.minutes_per_session&&day.intensity!=="rest"))return NextResponse.json({error:"The generated plan did not fit your schedule safely. Please try again."},{status:502});
+ const activeDays=days.filter(day=>day.intensity!=="rest");
+ if(days.some((day,index)=>day.day!==index+1)||activeDays.length!==input.days_per_week||!days.some(day=>day.intensity==="rest")||days.some(day=>day.intensity==="rest"?day.duration_minutes!==0:day.duration_minutes===0||day.duration_minutes>input.minutes_per_session)||input.level==="beginner"&&days.some(day=>day.intensity==="challenging")||days.some((day,index)=>day.intensity==="challenging"&&days[index+1]?.intensity==="challenging"))return NextResponse.json({error:"The generated plan did not fit your schedule safely. Please try again."},{status:502});
  const plan={...validated.data,days,preferences:context,generated_at:new Date().toISOString(),safety_note:"General wellness guidance only. Adapt activities to your ability and stop if you feel pain, dizzy or unwell."};
  const {data:saved,error}=await supabase.from("fitness_plans").insert({user_id:user.id,title:plan.title,plan}).select("id,title,plan,created_at").single();
  if(error)return NextResponse.json({error:"The plan was generated but could not be saved."},{status:500});

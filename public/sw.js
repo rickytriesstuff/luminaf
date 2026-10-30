@@ -28,7 +28,7 @@ self.addEventListener("push",event=>{
   body:payload.body||"A gentle wellness reminder.",
   icon:"/icon.svg",
   badge:"/icon.svg",
-  tag:"luminaf-reminder",
+  tag:payload.tag||"luminaf-reminder",
   data:{url:payload.url||"/"},
   renotify:false
  }));

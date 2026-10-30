@@ -2,7 +2,7 @@ import {NextResponse} from "next/server";
 import {z} from "zod";
 import {createClient} from "@/lib/supabase/server";
 const itemSchema=z.object({name:z.string().trim().min(1).max(100),portion_grams:z.number().min(1).max(3000),confidence:z.number().min(0).max(1).optional(),nutrition:z.object({calories:z.number().min(0).max(5000),protein_g:z.number().min(0).max(300),carbs_g:z.number().min(0).max(500),fat_g:z.number().min(0).max(300),fiber_g:z.number().min(0).max(150),sugar_g:z.number().min(0).max(250),sodium_mg:z.number().min(0).max(15000)}).strict()});
-const schema=z.object({meal_type:z.enum(["breakfast","lunch","dinner","snack"]).optional(),logged_at:z.string().datetime().optional(),meal_score:z.number().int().min(0).max(100).optional(),photo_base64:z.string().max(11_000_000).optional(),items:z.array(itemSchema).min(1).max(15)});
+const schema=z.object({meal_type:z.enum(["breakfast","lunch","dinner","snack"]).optional(),logged_at:z.string().datetime().optional(),meal_score:z.number().int().min(0).max(100).optional(),photo_base64:z.string().max(11_500_000).optional(),items:z.array(itemSchema).min(1).max(15)});
 export async function GET(request:Request){
  const supabase=await createClient();
  const {data:{user}}=await supabase.auth.getUser();

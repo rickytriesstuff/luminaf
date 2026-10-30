@@ -115,4 +115,4 @@ select cron.schedule(
 );
 ```
 
-The worker respects each reminder's timezone and quiet hours, deduplicates each scheduled minute, retries failed deliveries up to three times, and removes expired browser subscriptions. Test on HTTPS with a real browser and VAPID credentials before enabling production schedules.
+The worker respects each reminder's timezone and quiet hours, deduplicates each scheduled minute, claims queued notifications atomically with expiring leases, retries failed deliveries up to three times, and removes expired browser subscriptions. The in-app notification center lists the last 50 notifications and lets the owner mark individual items as read. Test on HTTPS with a real browser and VAPID credentials before enabling production schedules.

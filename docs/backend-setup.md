@@ -53,6 +53,7 @@ Migration `202610310004_private_meal_storage_and_ai_limits.sql` creates a privat
 - `GET /api/friends`, `POST /api/friends/invite`, `POST /api/friends/accept`
 - `GET /api/billing/status`, `POST /api/billing/checkout`, `POST /api/billing/portal`, and Stripe webhook `POST /api/webhooks/stripe`
 - `GET /api/points` and `GET /api/progress`
+- `GET /api/plans` and `POST /api/plans/generate` (AI-generated, saved weekly plans; five generations per hour)
 - `GET /api/notifications`, `POST /api/notifications/read`
 - `GET /api/push/public-key`, `POST/DELETE /api/push/subscribe`
 - `GET /api/weather?lat=...&lon=...` (authenticated; browser geolocation is opt-in)
@@ -62,7 +63,7 @@ Read APIs remain available after expiry. Write APIs check the server-side subscr
 
 ## Not yet enabled
 
-The Web Push worker and notification center are implemented but require VAPID secrets and a scheduled Edge Function deployment. AI symptom guidance, scheduled personalized plans, and production observability still require implementation and configuration. XP is awarded by a server-only database function after successful user actions, with per-action daily caps and idempotency. The points ledger cannot be written by client sessions. The symptom checker intentionally fails closed until a clinically reviewed provider and escalation protocol are approved. Do not enable it as a diagnostic feature.
+The Web Push worker and notification center are implemented but require VAPID secrets and a scheduled Edge Function deployment. AI symptom guidance and production observability still require implementation and configuration. The AI workout-plan endpoint is rate-limited, validates the generated seven-day schedule, includes opt-in local weather context, and saves accepted plans. XP is awarded by a server-only database function after successful user actions, with per-action daily caps and idempotency. The points ledger cannot be written by client sessions. The symptom checker intentionally fails closed until a clinically reviewed provider and escalation protocol are approved. Do not enable it as a diagnostic feature.
 
 ## Stripe billing
 

@@ -33,7 +33,7 @@ Deno.serve(async request=>{
   const {data:subscriptions}=await supabase.from("push_subscriptions").select("id,endpoint,subscription").eq("user_id",item.user_id);
   let successCount=0,lastError="No active push subscription is registered for this account.";
   for(const sub of subscriptions??[]){
-   try{await webpush.sendNotification(sub.subscription,JSON.stringify({title:item.title,body:item.body,url:"/"}),{TTL:3600});successCount++;}
+   try{await webpush.sendNotification(sub.subscription,JSON.stringify({title:item.title,body:item.body,url:"/",tag:item.id}),{TTL:3600});successCount++;}
    catch(error){
     const status=typeof error==="object"&&error!==null&&"statusCode" in error?Number((error as {statusCode:unknown}).statusCode):0;
     lastError=error instanceof Error?error.message:"Push delivery failed.";

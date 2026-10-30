@@ -18,6 +18,19 @@ Deno.serve(async request=>{
  const {data:reminders,error}=await admin.from("reminders").select("id,user_id,kind,local_time,timezone,enabled,quiet_hours").eq("enabled",true);
  if(error)return Response.json({error:"Unable to load reminders."},{status:500});
  let queued=0;
+ const trialNow=now.toISOString();
+ const trialHorizon=new Date(now.getTime()+24*60*60*1000).toISOString();
+ const {data:trials,error:trialError}=await admin.from("subscriptions").select("id,user_id,trial_ends_at").eq("status","trialing").gt("trial_ends_at",trialNow).lte("trial_ends_at",trialHorizon).is("trial_reminder_sent_at",null).limit(100);
+ if(trialError)return Response.json({error:"Unable to load trial reminders."},{status:500});
+ for(const trial of trials||[]){
+  const {data:claimed,error:claimError}=await admin.from("subscriptions").update({trial_reminder_sent_at:now.toISOString()}).eq("id",trial.id).is("trial_reminder_sent_at",null).select("id").maybeSingle();
+  if(claimError||!claimed)continue;
+  const {error:noticeError}=await admin.from("notifications").insert({user_id:trial.user_id,title:"Your Luminaf trial ends within 24 hours",body:"Your free trial is nearly over. Review Luminaf Plus to keep full access to your wellness tools.",delivery_status:"queued"});
+  if(noticeError){
+   await admin.from("subscriptions").update({trial_reminder_sent_at:null}).eq("id",trial.id);
+   console.error("Trial reminder enqueue failed",noticeError.message);
+  }else queued++;
+ }
  for(const reminder of reminders||[]){const minute=localMinute(reminder.timezone||"UTC",now);if(!minute||minute!==String(reminder.local_time||"").slice(0,5)||quietNow(reminder.quiet_hours,minute))continue;const message=copy[reminder.kind]||{title:"Luminaf reminder",body:"A gentle nudge for your wellness routine."};const result=await admin.from("notifications").insert({user_id:reminder.user_id,reminder_id:reminder.id,scheduled_for:scheduledFor,title:message.title,body:message.body,delivery_status:"queued"});if(!result.error)queued++;else if(result.error.code!=="23505")console.error("Notification queue insert failed",result.error.message);}
  const cutoff=new Date(now.getTime()-15*60000).toISOString();
  const {data:pending,error:pendingError}=await admin.from("notifications").select("id,user_id,title,body,attempts").eq("delivery_status","queued").gte("created_at",cutoff).lt("attempts",3).order("created_at",{ascending:true}).limit(100);

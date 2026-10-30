@@ -1,0 +1,6 @@
+import {NextResponse} from "next/server";
+export async function GET(){
+ const key=process.env.VAPID_PUBLIC_KEY;
+ if(!key)return NextResponse.json({error:"Push notifications are not configured."},{status:503});
+ return NextResponse.json({publicKey:key},{headers:{"Cache-Control":"public, max-age=3600"}});
+}

@@ -1,0 +1,6 @@
+import {z} from "zod";
+export const symptomInputSchema=z.object({symptoms:z.string().trim().min(3).max(3000)});
+const RED_FLAGS=[/chest pain|chest pressure/i,/trouble breathing|difficulty breathing|can't breathe|cannot breathe/i,/face droop|one-sided weakness|slurred speech|stroke/i,/severe bleeding|uncontrolled bleeding/i,/suicid(al|e)|want to die|kill myself/i,/unconscious|loss of consciousness|seizure/i];
+/** Conservative pre-screen only. Never treat keyword matching as a medical-grade detector. */
+export function containsEmergencyRedFlag(text:string):boolean{return RED_FLAGS.some(pattern=>pattern.test(text));}
+export const symptomResponseSchema=z.object({possibleCauses:z.array(z.object({name:z.string(),explanation:z.string()})).max(5),severity:z.enum(["low","moderate","high","urgent"]),selfCare:z.array(z.string()).max(6),seekCareWhen:z.array(z.string()).max(6),disclaimer:z.literal("Informational only. Not a medical diagnosis.")});

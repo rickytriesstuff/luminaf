@@ -33,7 +33,7 @@ export async function POST(request:Request){
  if(event.type==="customer.subscription.created"||event.type==="customer.subscription.updated"||event.type==="customer.subscription.deleted"||event.type==="customer.subscription.trial_will_end"){
   const userId=stringValue(metadata.user_id),subscriptionId=stringValue(object.id),status=stringValue(object.status)||"incomplete";
   if(userId&&subscriptionId){
-   const {error}=await admin.from("subscriptions").update({provider:"stripe",provider_customer_id:stringValue(object.customer),provider_subscription_id:subscriptionId,status,trial_ends_at:isoFromUnix(object.trial_end),current_period_end:isoFromUnix(object.current_period_end)}).eq("user_id",userId);
+   const {error}=await admin.from("subscriptions").update({provider:"stripe",provider_customer_id:stringValue(object.customer),provider_subscription_id:subscriptionId,status,trial_ends_at:status==="trialing"?isoFromUnix(object.trial_end):null,current_period_end:isoFromUnix(object.current_period_end)}).eq("user_id",userId);
    if(error)return NextResponse.json({error:"Could not update subscription record."},{status:500});
    if(event.type==="customer.subscription.trial_will_end"){
     const {error:noticeError}=await admin.from("notifications").insert({user_id:userId,title:"Your Luminaf trial is ending soon",body:"Your free trial is nearing its end. Review your subscription options to keep full access to your wellness tools.",delivery_status:"queued"});

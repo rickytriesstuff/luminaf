@@ -35,7 +35,8 @@ self.addEventListener("push",event=>{
 });
 self.addEventListener("notificationclick",event=>{
  event.notification.close();
- const requested=new URL(event.notification.data?.url||"/",self.location.origin);\n const target=requested.origin===self.location.origin?requested.toString():self.location.origin+"/";
+ const requested=new URL(event.notification.data?.url||"/",self.location.origin);
+ const target=requested.origin===self.location.origin?requested.toString():self.location.origin+"/";
  event.waitUntil(self.clients.matchAll({type:"window",includeUncontrolled:true}).then(clients=>{
   const existing=clients.find(client=>client.url.startsWith(self.location.origin));
   if(existing){existing.navigate(target);return existing.focus();}

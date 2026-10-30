@@ -10,7 +10,7 @@ Next.js 14 App Router, TypeScript, Tailwind CSS, Framer Motion, Supabase, Zod, R
 ## Local setup
 1. Install Node.js 20+.
 2. Copy `.env.example` to `.env.local`.
-3. Configure Supabase and set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+3. Create a Supabase project, copy `.env.example` to `.env.local`, and configure `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and the server-only `SUPABASE_SERVICE_ROLE_KEY`.
 4. Run `npm install`.
 5. Start with `npm run dev`.
 
@@ -24,4 +24,7 @@ See [.env.example](.env.example). Never expose Supabase service-role, AI, Stripe
 Deploy the Next.js app to Vercel, configure environment variables, set Supabase Auth redirect URLs, enable Apple as an OAuth provider in Supabase (Apple Developer Services ID, Team ID, Key ID and private key), enable Google if desired, apply migrations and configure storage policies before enabling user data. Configure payment webhooks and scheduled notification jobs only after their server-side handlers and signature checks are implemented.
 
 ## Current status
-Frontend milestone: responsive dark wellness dashboard, installable PWA shell with offline fallback, auth and onboarding screens, AI meal scanner UI, workout and sleep tracker UI, habit garden, progress dashboard, body metrics, reminder preferences, starter weekly plans, profile/settings, Friends Zone and safety-first health check-in. The meal scanner and Friends Zone already have server integration paths, but require configured Supabase and AI credentials. Several new frontend screens are intentionally preview-only until the backend phase. Push delivery, persistent habit/water logs, analytics, personalized plans, subscription billing, export/deletion and comprehensive E2E testing remain to be completed and verified. Do not interpret local preview counters or empty states as persisted health records.
+Frontend milestone: responsive dark wellness dashboard, installable PWA shell with offline fallback, auth and onboarding screens, AI meal scanner UI, workout and sleep tracker UI, habit garden, progress dashboard, body metrics, reminder preferences, starter weekly plans, profile/settings, Friends Zone and safety-first health check-in. The meal scanner, Friends Zone, water logs, habit check-ins, body measurements, reminder preferences, profile updates, workout logs and sleep logs have authenticated server APIs. Signup creates a private profile and a seven-day trial record; `TRIAL_DAYS` adjusts new-user trials when the server service key is configured. Write APIs enforce server-side trial/subscription entitlements while reads remain available after expiry. These APIs require Supabase migrations and environment variables to be configured. Stripe checkout/webhooks/customer portal, push delivery and cron scheduling, AI symptom guidance, weather-aware plans, points award automation, export/deletion and production observability remain to be completed. Do not interpret local preview counters or empty states as persisted health records.
+
+## Supabase backend
+See [docs/backend-setup.md](docs/backend-setup.md) for migration, Auth, private storage, and server API setup.

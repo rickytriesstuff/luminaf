@@ -37,7 +37,7 @@ export async function POST(request:Request){
   const {error:uploadError}=await supabase.storage.from("meal-photos").upload(photo_path,bytes,{contentType:match[1],upsert:false});
   if(uploadError)return NextResponse.json({error:"Unable to securely store meal photo."},{status:500});
  }
- const {photo_base64:_,...mealInput}=input;
+ const mealInput={meal_type:input.meal_type,logged_at:input.logged_at,meal_score:input.meal_score};
  const {data:meal,error}=await supabase.from("meals").insert({user_id:user.id,meal_type:mealInput.meal_type,logged_at:mealInput.logged_at,meal_score:mealInput.meal_score,photo_path,calories:totals.calories,protein_g:totals.protein_g,carbs_g:totals.carbs_g,fat_g:totals.fat_g,fiber_g:totals.fiber_g,ai_estimate:true}).select("id").single();
  if(error||!meal){if(photo_path)await supabase.storage.from("meal-photos").remove([photo_path]);return NextResponse.json({error:"Unable to save meal."},{status:500});}
  const {error:itemError}=await supabase.from("meal_items").insert(items.map(item=>({meal_id:meal.id,user_id:user.id,name:item.name,portion_grams:item.portion_grams,confidence:item.confidence??null,nutrition:item.nutrition})));

@@ -14,7 +14,8 @@ export async function GET(request:Request){
  if(to)query=query.lte("logged_at",to);
  const {data,error}=await query;
  if(error)return NextResponse.json({error:"Unable to load meals."},{status:500});
- return NextResponse.json({meals:data??[]});
+ const meals=await Promise.all((data??[]).map(async meal=>{if(!meal.photo_path)return {...meal,photo_url:null};const {data:signed}=await supabase.storage.from("meal-photos").createSignedUrl(meal.photo_path,300);return {...meal,photo_url:signed?.signedUrl??null};}));
+ return NextResponse.json({meals});
 }
 export async function POST(request:Request){
  const supabase=await createClient();

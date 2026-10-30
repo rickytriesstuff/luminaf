@@ -58,3 +58,16 @@ Read APIs remain available after expiry. Write APIs check the server-side subscr
 ## Not yet enabled
 
 Stripe checkout/webhooks/customer portal, push delivery and cron scheduling, AI symptom guidance, scheduled personalized plans, data export/deletion workflows and production observability still require implementation and configuration. The symptom checker intentionally fails closed until a clinically reviewed provider and escalation protocol are approved. Do not enable it as a diagnostic feature.
+
+## Stripe billing
+
+Create a recurring monthly Price in Stripe for USD $4.99, then configure:
+
+- `STRIPE_SECRET_KEY`: server-only secret key
+- `STRIPE_PRICE_ID`: the recurring monthly Price ID
+- `STRIPE_WEBHOOK_SECRET`: signing secret for the webhook endpoint
+- `NEXT_PUBLIC_APP_URL`: production HTTPS origin
+
+Register `https://YOUR_DOMAIN/api/webhooks/stripe` as a Stripe webhook endpoint. Subscribe to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, and `invoice.payment_failed`. The handler verifies the timestamped HMAC signature, applies subscription changes with the server-only Supabase service role, and records processed event IDs for idempotency.
+
+Enable the Stripe Customer Portal in the Stripe Dashboard. Checkout is available after the free trial expires; active subscribers are sent to the portal to manage billing. The database trial record is created at signup, and server-side write APIs enforce the resulting entitlement. Test with Stripe test-mode keys and test cards before switching to live mode.

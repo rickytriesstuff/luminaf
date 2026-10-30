@@ -53,6 +53,8 @@ Migration `202610310004_private_meal_storage_and_ai_limits.sql` creates a privat
 - `GET /api/friends`, `POST /api/friends/invite`, `POST /api/friends/accept`
 - `GET /api/billing/status`, `POST /api/billing/checkout`, `POST /api/billing/portal`, and Stripe webhook `POST /api/webhooks/stripe`
 - `GET /api/points` and `GET /api/progress`
+- `GET /api/notifications`, `POST /api/notifications/read`
+- `GET /api/push/public-key`, `POST/DELETE /api/push/subscribe`
 - `GET /api/weather?lat=...&lon=...` (authenticated; browser geolocation is opt-in)
 - `GET /api/account/export` and `POST /api/account/delete`
 
@@ -60,7 +62,7 @@ Read APIs remain available after expiry. Write APIs check the server-side subscr
 
 ## Not yet enabled
 
-Web Push delivery and cron scheduling, AI symptom guidance, scheduled personalized plans, and production observability still require implementation and configuration. XP is awarded by a server-only database function after successful user actions, with per-action daily caps and idempotency. The points ledger cannot be written by client sessions. The symptom checker intentionally fails closed until a clinically reviewed provider and escalation protocol are approved. Do not enable it as a diagnostic feature.
+The Web Push worker and notification center are implemented but require VAPID secrets and a scheduled Edge Function deployment. AI symptom guidance, scheduled personalized plans, and production observability still require implementation and configuration. XP is awarded by a server-only database function after successful user actions, with per-action daily caps and idempotency. The points ledger cannot be written by client sessions. The symptom checker intentionally fails closed until a clinically reviewed provider and escalation protocol are approved. Do not enable it as a diagnostic feature.
 
 ## Stripe billing
 

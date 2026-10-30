@@ -4,10 +4,14 @@ returns table(id uuid,user_id uuid,title text,body text,attempts integer)
 language plpgsql security definer set search_path=public
 as $$
 begin
+ update public.notifications
+ set delivery_status='failed',lease_expires_at=null,
+     last_error=coalesce(last_error,'Delivery worker lease expired after the final attempt')
+ where delivery_status='sending' and lease_expires_at<now() and attempts>=4;
  return query
  with due as (
   select n.id from public.notifications n
-  where n.attempts<3 and n.next_attempt_at<=now()
+  where n.attempts<4 and n.next_attempt_at<=now()
    and (n.delivery_status in ('queued','failed') or (n.delivery_status='sending' and n.lease_expires_at<now()))
   order by n.next_attempt_at,n.created_at
   for update skip locked

@@ -1,6 +1,6 @@
 "use client";
 import {motion} from "framer-motion";
-import {Activity,Apple,ArrowUpRight,Bell,CalendarDays,ChevronRight,Droplets,Flame,Footprints,HeartPulse,Moon,ShieldCheck,Sparkles,Users,Waves,Zap} from "lucide-react";
+import {Activity,Apple,ArrowUpRight,Bell,CalendarDays,ChevronRight,Droplets,Flame,Footprints,HeartPulse,Moon,Plus,ShieldCheck,Sparkles,Users,Waves,Zap} from "lucide-react";
 import {useState} from "react";
 const stats=[{label:"Calories",value:"1,420",target:"2,100 kcal",pct:68,icon:Flame},{label:"Hydration",value:"1.4 L",target:"2.5 L",pct:56,icon:Droplets},{label:"Movement",value:"6,820",target:"10,000 steps",pct:68,icon:Footprints},{label:"Sleep",value:"7h 20m",target:"8 hours",pct:91,icon:Moon}];
 const week=[72,88,54,96,67,42,0];

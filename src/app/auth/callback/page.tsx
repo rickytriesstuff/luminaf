@@ -1,0 +1,5 @@
+"use client";
+import {useEffect,useState} from "react";
+import {useRouter} from "next/navigation";
+import {createClient} from "@/lib/supabase/client";
+export default function AuthCallbackPage(){const router=useRouter();const [message,setMessage]=useState("Completing secure sign-in…");useEffect(()=>{let active=true;(async()=>{const supabase=createClient();const url=new URL(window.location.href);const code=url.searchParams.get("code");if(code){const {error}=await supabase.auth.exchangeCodeForSession(code);if(error){if(active){setMessage(error.message);router.replace("/auth?error="+encodeURIComponent(error.message));}return;}}const {data:{session}}=await supabase.auth.getSession();if(!session){if(active)router.replace("/auth?error=Unable%20to%20complete%20sign-in");return;}if(active)router.replace("/onboarding");})();return()=>{active=false;};},[router]);return <main className="grid min-h-screen place-items-center px-5"><p className="text-sm text-[#8CFFC9]" role="status">{message}</p></main>;}

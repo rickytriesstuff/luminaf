@@ -1,6 +1,7 @@
 import {NextResponse} from "next/server";
 import {z} from "zod";
 import {createClient} from "@/lib/supabase/server";
+import {awardPoints} from "@/lib/billing/points";
 import {hasActiveEntitlement,entitlementRequiredResponse} from "@/lib/billing/entitlement";
 const itemSchema=z.object({name:z.string().trim().min(1).max(100),portion_grams:z.number().min(1).max(3000),confidence:z.number().min(0).max(1).optional(),nutrition:z.object({calories:z.number().min(0).max(5000),protein_g:z.number().min(0).max(300),carbs_g:z.number().min(0).max(500),fat_g:z.number().min(0).max(300),fiber_g:z.number().min(0).max(150),sugar_g:z.number().min(0).max(250),sodium_mg:z.number().min(0).max(15000)}).strict()});
 const schema=z.object({meal_type:z.enum(["breakfast","lunch","dinner","snack"]).optional(),logged_at:z.string().datetime().optional(),meal_score:z.number().int().min(0).max(100).optional(),photo_base64:z.string().max(11_500_000).optional(),items:z.array(itemSchema).min(1).max(15)});
@@ -41,6 +42,6 @@ export async function POST(request:Request){
  const {data:meal,error}=await supabase.from("meals").insert({user_id:user.id,meal_type:mealInput.meal_type,logged_at:mealInput.logged_at,meal_score:mealInput.meal_score,photo_path,calories:totals.calories,protein_g:totals.protein_g,carbs_g:totals.carbs_g,fat_g:totals.fat_g,fiber_g:totals.fiber_g,ai_estimate:true}).select("id").single();
  if(error||!meal){if(photo_path)await supabase.storage.from("meal-photos").remove([photo_path]);return NextResponse.json({error:"Unable to save meal."},{status:500});}
  const {error:itemError}=await supabase.from("meal_items").insert(items.map(item=>({meal_id:meal.id,user_id:user.id,name:item.name,portion_grams:item.portion_grams,confidence:item.confidence??null,nutrition:item.nutrition})));
- if(itemError){await supabase.from("meals").delete().eq("id",meal.id).eq("user_id",user.id);if(photo_path)await supabase.storage.from("meal-photos").remove([photo_path]);return NextResponse.json({error:"Unable to save meal items."},{status:500});}
+ await awardPoints(user.id,5,"meal_logged",meal.id,3);
  return NextResponse.json({id:meal.id,saved:true,totals},{status:201});
 }

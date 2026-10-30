@@ -1,6 +1,7 @@
 import {NextResponse} from "next/server";
 import {z} from "zod";
 import {createClient} from "@/lib/supabase/server";
+import {hasActiveEntitlement,entitlementRequiredResponse} from "@/lib/billing/entitlement";
 const profileSchema=z.object({
  display_name:z.string().trim().min(1).max(80).optional(),
  birth_date:z.string().date().optional().nullable(),
@@ -25,6 +26,7 @@ export async function PATCH(request:Request){
  const supabase=await createClient();
  const {data:{user}}=await supabase.auth.getUser();
  if(!user)return NextResponse.json({error:"Sign in required."},{status:401});
+ if(!await hasActiveEntitlement(supabase,user.id))return NextResponse.json(entitlementRequiredResponse(),{status:402});
  const parsed=profileSchema.safeParse(await request.json());
  if(!parsed.success)return NextResponse.json({error:"Profile details are invalid.",issues:parsed.error.flatten()},{status:400});
  const {data,error}=await supabase.from("profiles").update(parsed.data).eq("id",user.id).select("*").single();

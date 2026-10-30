@@ -96,6 +96,7 @@ The function requires the `x-cron-secret` header and should be invoked once per 
 ```sql
 create extension if not exists pg_cron with schema pg_catalog;
 create extension if not exists pg_net with schema extensions;
+select vault.create_secret('YOUR_CRON_SECRET','luminaf_cron_secret');
 select cron.schedule(
   'luminaf-reminders-every-minute',
   '* * * * *',

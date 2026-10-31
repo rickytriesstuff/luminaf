@@ -25,6 +25,7 @@ jobs:
           NEXT_PUBLIC_SITE_BASE_PATH: /luminaf
       - uses: denoland/setup-deno@v2
       - run: deno install
-      - run: deno check supabase/functions/push-dispatch/index.ts\n      - run: deno check supabase/functions/api-gateway/index.ts
+      - run: deno check supabase/functions/push-dispatch/index.ts
+      - run: deno check supabase/functions/api-gateway/index.ts
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e

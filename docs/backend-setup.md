@@ -1,96 +1,129 @@
-# Supabase backend setup
+# Supabase backend setup for GitHub Pages
 
-## Before connecting a project
+Luminaf's frontend is a static Next.js export hosted on GitHub Pages. Supabase provides authentication, Postgres/RLS, private Storage and Edge Functions. No Next.js application server is required.
 
-Create a Supabase project and keep its database password and service-role key private. Add these values to your deployment's encrypted environment-variable settings, never to source control or client-side code.
+## 1. Public frontend build variables
 
-Required server environment:
+Add these as **GitHub repository variables** in Settings → Secrets and variables → Actions → Variables:
 
-- `NEXT_PUBLIC_SUPABASE_URL`: project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: publishable/anon key (safe to expose; RLS is mandatory)
-- `SUPABASE_SERVICE_ROLE_KEY`: server-only service role key, used for first-signup trial configuration, trusted points awards, Stripe webhook updates, and account deletion
-- `NEXT_PUBLIC_APP_URL`: canonical HTTPS application URL
-- `TRIAL_DAYS`: signup trial duration, default 7, clamped to 0–90
-- `OPENAI_API_KEY`: server-only meal vision provider key
+- `NEXT_PUBLIC_SUPABASE_URL`: `https://cgigviwpnvlidguhspnf.supabase.co`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: the project's public anon/publishable key
+- `NEXT_PUBLIC_SITE_BASE_PATH`: `/luminaf` for the default `rickytriesstuff.github.io/luminaf` Pages URL
 
-## Apply database migrations
+These values are public by design. Row Level Security must remain enabled. Never put the service-role key, OpenAI key, Stripe secret, webhook secret, VAPID private key or cron credential in a Pages variable.
 
-Install the Supabase CLI, authenticate, and link the project:
+For local development, copy `.env.example` to `.env.local` and set the Supabase URL and public key. Leave the base path empty locally unless you intentionally want the dev server under `/luminaf`.
+
+## 2. Supabase project and migrations
+
+The repository is linked to project ref `cgigviwpnvlidguhspnf`.
+
+Before applying migrations to a project with existing user data, take a database backup and review the ordered SQL files in `supabase/migrations`.
+
+Manual CLI route:
 
 ```bash
 npx supabase login
-npx supabase link --project-ref YOUR_PROJECT_REF
+npx supabase link --project-ref cgigviwpnvlidguhspnf
 npx supabase db push
 ```
 
-The ordered migrations create the private wellness schema, owner-only RLS, friend invitations and points-only friend views, private meal photo storage, AI rate limiting, seeded exercise library, signup profile/trial initialization, integrity constraints and query indexes.
+There is also a GitHub Actions workflow at `.github/workflows/deploy-supabase.yml`. Add the GitHub repository secret `SUPABASE_ACCESS_TOKEN` to deploy Edge Functions. Its optional `apply_migrations` input is disabled by default; set it to true only after reviewing/backup and provide `SUPABASE_DB_PASSWORD`.
 
-Review every migration in `supabase/migrations` before applying it to an existing production database. Backups are recommended.
+Migrations create the private wellness schema, per-user RLS, friend invitations and points-only friend views, private meal-photo storage, AI rate limits, seeded exercises, signup profile/trial initialization, integrity constraints and notification queue.
 
-## Authentication providers
+## 3. Deploy Edge Functions and set secrets
+
+The static frontend sends its existing `/api/*` calls to:
+
+`https://cgigviwpnvlidguhspnf.supabase.co/functions/v1/api-gateway?path=/api/...`
+
+The gateway validates the Supabase user token with Auth `getUser(token)`, then performs ordinary data operations through a user-scoped client so RLS applies. Stripe webhooks are verified by signature before any event is processed. The separate `push-dispatch` worker checks its server-only service-role bearer credential.
+
+In Supabase Dashboard → Edge Functions → Secrets, set:
+
+**Required**
+- `SITE_URL=https://rickytriesstuff.github.io` (origin only, no `/luminaf` path)
+- `SITE_BASE_PATH=/luminaf`
+
+**Meal scanner**
+- `OPENAI_API_KEY`
+- Optional `OPENAI_VISION_MODEL=gpt-4o-mini`
+
+**Stripe, when billing is enabled**
+- `STRIPE_SECRET_KEY`
+- `STRIPE_PRICE_ID`
+- `STRIPE_WEBHOOK_SECRET`
+
+**Web Push, when enabled**
+- `VAPID_PUBLIC_KEY`
+- `VAPID_PRIVATE_KEY`
+- `VAPID_SUBJECT=mailto:you@example.com`
+
+Supabase injects `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` into Edge Functions. Do not copy those privileged values into GitHub Pages.
+
+Deploy with:
+
+```bash
+npx supabase functions deploy --project-ref cgigviwpnvlidguhspnf
+```
+
+Or merge the deployment workflow after setting `SUPABASE_ACCESS_TOKEN`.
+
+## 4. Authentication providers
 
 In Supabase Dashboard → Authentication → URL Configuration:
 
-- Site URL: your production origin
-- Redirect URL: `https://YOUR_DOMAIN/auth/callback`
-- Local redirect: `http://localhost:3000/auth/callback`
+- Site URL: `https://rickytriesstuff.github.io/luminaf/`
+- Redirect allow-list: `https://rickytriesstuff.github.io/luminaf/**`
+- Local development: `http://localhost:3000/**`
 
-Enable Email/password. For Google, configure OAuth client ID/secret and the Supabase callback URL in the Google Cloud Console. For Apple, configure the Apple Services ID, Team ID, Key ID and signing key in Supabase's Apple provider settings. Apple provider setup also requires the correct domain association and Apple Developer configuration.
+Enable Email/password. Google and Apple buttons work only after their provider credentials and callback configuration are enabled in Supabase. The static `/auth/callback/` page exchanges the PKCE code and handles password-recovery callbacks. The `/auth/reset-password/` page updates the password.
 
-## Storage
+For a root custom domain, update `SITE_URL`, `SITE_BASE_PATH`, GitHub variable `NEXT_PUBLIC_SITE_BASE_PATH` (empty), Supabase Site URL and redirect allow-list together.
 
-Migration `202610310004_private_meal_storage_and_ai_limits.sql` creates a private `meal-photos` bucket, caps uploads at 8 MB, and restricts objects to the authenticated user's UUID folder. Meal list responses generate short-lived signed URLs; never change this bucket to public.
+## 5. Private meal photos and AI analysis
 
-## Current authenticated APIs
+Migration `202610310004_private_meal_storage_and_ai_limits.sql` creates a private `meal-photos` bucket, caps uploads at 8 MB and restricts objects to the authenticated user's UUID folder. Meal list responses generate short-lived signed URLs; never make this bucket public.
 
-- `GET/PATCH /api/profile`
-- `GET/POST /api/meals` and `POST /api/meals/analyze`
-- `GET/POST /api/water`
-- `GET/POST /api/habits` and `GET/POST /api/habits/checkins`
-- `GET/POST /api/metrics`
-- `GET/PUT /api/reminders`
-- `POST /api/workouts`, `POST /api/sleep`
-- `GET /api/friends`, `POST /api/friends/invite`, `POST /api/friends/accept`
-- `GET /api/billing/status`, `POST /api/billing/checkout`, `POST /api/billing/portal`, and Stripe webhook `POST /api/webhooks/stripe`
-- `GET /api/points` and `GET /api/progress`
-- `GET /api/weather?lat=...&lon=...` (authenticated; browser geolocation is opt-in)
-- `GET /api/account/export` and `POST /api/account/delete`
+Meal analysis runs inside `api-gateway` and calls OpenAI using the Edge Function secret. It validates image type/size, checks the hourly AI quota, validates the structured response and returns estimates with a non-medical disclaimer.
 
-Read APIs remain available after expiry. Write APIs check the server-side subscription record and return HTTP 402 when the trial or paid period has expired. User records are retained.
+## 6. Supported API operations
 
-## Not yet enabled
+All operations are routed through the `api-gateway` Edge Function:
 
-Web Push delivery and cron scheduling, AI symptom guidance, scheduled personalized plans, and production observability still require implementation and configuration. XP is awarded by a server-only database function after successful user actions, with per-action daily caps and idempotency. The points ledger cannot be written by client sessions. The symptom checker intentionally fails closed until a clinically reviewed provider and escalation protocol are approved. Do not enable it as a diagnostic feature.
+- Profile, water, habits and daily habit check-ins.
+- Workouts and workout sets, sleep, body metrics and reminders.
+- Progress summary, points, exercise library and notification inbox/read state.
+- Meals, legacy multipart meal save, private photo uploads and AI meal analysis.
+- Friends list, invitation creation and acceptance.
+- Authenticated local weather lookup.
+- Push public key and per-user push subscription registration/removal.
+- Subscription status, Stripe checkout and billing portal.
+- Stripe webhook processing with timestamped signature verification and event idempotency.
+- Account JSON export and permanent account deletion.
+- Symptom endpoint intentionally returns a fail-closed unavailable response; it is not a diagnostic tool.
 
-## Stripe billing
+Reads remain available after trial expiry. Write operations check the server-side subscription entitlement and return HTTP 402 when the trial or paid period has ended. The signup migration creates the default seven-day trial.
 
-Create a recurring monthly Price in Stripe for USD $4.99, then configure:
+## 7. Stripe billing
 
-- `STRIPE_SECRET_KEY`: server-only secret key
-- `STRIPE_PRICE_ID`: the recurring monthly Price ID
-- `STRIPE_WEBHOOK_SECRET`: signing secret for the webhook endpoint
-- `NEXT_PUBLIC_APP_URL`: production HTTPS origin
+Create a recurring monthly USD $4.99 Price in Stripe and set the Edge Function secrets above. Register this **Supabase Edge Function URL** as the Stripe webhook endpoint:
 
-Register `https://YOUR_DOMAIN/api/webhooks/stripe` as a Stripe webhook endpoint. Subscribe to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, and `invoice.payment_failed`. The handler verifies the timestamped HMAC signature, applies subscription changes with the server-only Supabase service role, and records processed event IDs for idempotency.
+`https://cgigviwpnvlidguhspnf.supabase.co/functions/v1/api-gateway?path=%2Fapi%2Fwebhooks%2Fstripe`
 
-Enable the Stripe Customer Portal in the Stripe Dashboard. Checkout is available after the free trial expires; active subscribers are sent to the portal to manage billing. The database trial record is created at signup, and server-side write APIs enforce the resulting entitlement. Test with Stripe test-mode keys and test cards before switching to live mode.
+Subscribe to `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted` and `invoice.payment_failed`. The gateway verifies the timestamped HMAC signature over the raw request body and records event IDs for idempotency.
 
+Enable Stripe Customer Portal in Stripe Dashboard. Checkout is available after the free trial expires; active subscribers can manage billing through the portal. Test with Stripe test-mode keys and cards before switching to live mode.
 
-## Web Push delivery worker
+## 8. Web Push delivery worker
 
-Migration 011 adds an idempotent notification queue and locks notification mutations to the service role. The repository includes a Supabase Edge Function at `supabase/functions/push-dispatch/index.ts`.
+Migration 011 adds an idempotent notification queue and locks notification mutations to the service role. Generate VAPID keys locally with `npx web-push generate-vapid-keys`, then store them only as Supabase Edge Function secrets.
 
-Generate a VAPID key pair locally with `npx web-push generate-vapid-keys`. Set `NEXT_PUBLIC_VAPID_PUBLIC_KEY` in the Next.js host. Set the private values only as Supabase Edge Function secrets:
-
-```sh
-supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:you@example.com
-supabase functions deploy push-dispatch
-```
-
-Enable pg_cron, pg_net and Vault extensions. Store the project URL and service-role key in Vault, not source code:
+Enable pg_cron, pg_net and Vault extensions. Store the project URL and service-role key in Vault, not source control:
 
 ```sql
-select vault.create_secret('https://YOUR_PROJECT_REF.supabase.co','luminaf_project_url');
+select vault.create_secret('https://cgigviwpnvlidguhspnf.supabase.co','luminaf_project_url');
 select vault.create_secret('YOUR_SERVICE_ROLE_KEY','luminaf_service_role_key');
 select cron.schedule('luminaf-push-dispatch','* * * * *',
 $$ select net.http_post(
@@ -99,12 +132,25 @@ $$ select net.http_post(
  body := '{}'::jsonb); $$);
 ```
 
-The worker checks enabled reminders in each saved IANA timezone, respects quiet hours including overnight windows, queues idempotent notifications, sends web push, removes expired endpoints and records delivery status. Verify Edge Function logs and notification rows after enabling the schedule. Push requires HTTPS and browser permission. On supported iOS versions, web push requires adding the site to the Home Screen.
+The worker checks enabled reminders in each saved IANA timezone, respects quiet hours including overnight windows, queues idempotent notifications, sends push, removes expired endpoints and records delivery status. Verify Edge Function logs and notification rows after enabling the schedule. Push requires HTTPS and browser permission; on supported iOS versions, web push requires adding the site to the Home Screen.
 
-## Final integration checks
+## 9. GitHub Pages deployment
 
-Run `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run test:e2e`. Exercise the complete auth, export/deletion, webhook and notification flows against a real Supabase project before calling the service production-ready.
+In repository Settings → Pages, choose **GitHub Actions** as the publishing source. The `.github/workflows/deploy-pages.yml` workflow builds the static `out/` folder and deploys it on pushes to `main`. It requires the three public repository variables in section 1. Do not merge the migration PR until they are present, otherwise the app would build without its Supabase connection.
 
+## 10. Production verification
 
-## Account deletion and billing
-The account deletion API checks for a linked Stripe subscription and cancels it server-side before deleting private meal photos and the Auth user. Configure STRIPE_SECRET_KEY for this path. If Stripe cancellation cannot be confirmed, deletion fails safely and the account remains intact so the user is not left with an untracked active subscription. Users should export their data before permanent deletion.
+After deployment, test on desktop and mobile:
+
+1. Email signup, email confirmation, login, logout, password reset, Google/Apple OAuth if enabled.
+2. Session refresh after leaving the app idle and returning on another device.
+3. Create/read/update water, habits, meals, workouts, sleep, metrics, reminders and profile.
+4. Meal-photo upload, private signed URL access and AI quota enforcement.
+5. Friend invitation expiry, acceptance and points-only privacy using two separate accounts.
+6. Trial expiry and server-side write restrictions.
+7. Stripe test checkout, portal, invalid webhook signature rejection and idempotent event handling.
+8. Push registration, quiet hours, scheduled delivery and expired endpoint cleanup.
+9. Account export and permanent deletion, including cancellation of an active Stripe subscription.
+10. PWA install, offline fallback, deep links and page refresh under `/luminaf/`.
+
+Do not call the system production-ready until these tests pass against the live Supabase project and Pages URL.

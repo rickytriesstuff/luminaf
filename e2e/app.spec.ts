@@ -24,3 +24,26 @@ test("PWA manifest is served",async({request})=>{
  expect(manifest.name).toBe("Luminaf");
  expect(manifest.display).toBe("standalone");
 });
+
+test("nutrition dashboard renders live-data summaries and charts",async({page})=>{
+ await page.goto("/nutrition");
+ await expect(page.getByRole("heading",{name:"Nutrition overview"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:/Today's nutrition/i})).toBeVisible();
+ await expect(page.getByRole("heading",{name:/Last 7 days/i})).toBeVisible();
+ await expect(page.getByRole("heading",{name:/macro balance/i})).toBeVisible();
+});
+test("progress dashboard renders activity, nutrition and recovery sections",async({page})=>{
+ await page.goto("/progress");
+ await expect(page.getByRole("heading",{name:/Progress & milestones/i})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Weight trend"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Nutrition trend"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Recovery snapshot"})).toBeVisible();
+});
+test("profile and body pages expose saved account data controls",async({page})=>{
+ await page.goto("/profile");
+ await expect(page.getByRole("heading",{name:"Profile & settings"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Your data"})).toBeVisible();
+ await page.goto("/body");
+ await expect(page.getByRole("heading",{name:"Your measurements"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Measurement history"})).toBeVisible();
+});

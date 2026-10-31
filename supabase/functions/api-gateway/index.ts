@@ -91,9 +91,16 @@ Deno.serve(async (req) => {
     if(endpoint==="health/symptoms")return json({error:"Symptom screening is disabled in this release. For severe, sudden or worsening symptoms, seek urgent medical care."},503,headers);
     if(endpoint==="weather"&&method==="GET"){
       const lat=Number(routeParams.get("lat")),lon=Number(routeParams.get("lon"));
-      if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)return json({error:"A valid location is required."},400,headers);
-      const w=await fetch("https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m");
-      return json(await w.json(),w.ok?200:502,headers);
+      if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)return failRequest("A valid location is required.",400);
+      const params=new URLSearchParams({latitude:String(lat),longitude:String(lon),current:"temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m",timezone:"auto"});
+      const w=await fetch("https://api.open-meteo.com/v1/forecast?"+params.toString());
+      if(!w.ok)return failRequest("Weather service is temporarily unavailable.",502);
+      const payload=obj(await w.json()),current=obj(payload.current);
+      if(!Object.keys(current).length)return failRequest("Weather data is unavailable for this location.",502);
+      const code=Number(current.weather_code),rain=Number(current.precipitation)||0,temp=Number(current.temperature_2m),wind=Number(current.wind_speed_10m)||0;
+      const condition=code===0?"Clear":[1,2].includes(code)?"Mostly clear":code===3?"Overcast":[45,48].includes(code)?"Fog":[51,53,55,56,57].includes(code)?"Drizzle":[61,63,65,66,67,80,81,82].includes(code)?"Rain":[71,73,75,77,85,86].includes(code)?"Snow":[95,96,99].includes(code)?"Thunderstorm":"Variable conditions";
+      const suggestion=rain>0||wind>40||temp>35||temp<0||[45,48,61,63,65,66,67,71,73,75,80,81,82,85,86,95,96,99].includes(code)?"An indoor session may be more comfortable right now.":"Conditions may suit a comfortable outdoor session. Check local conditions before heading out.";
+      return json({temperature_c:current.temperature_2m,feels_like_c:current.apparent_temperature,precipitation_mm:rain,wind_kmh:wind,weather_code:code,condition,suggestion,timezone:payload.timezone},200,headers);
     }
     if(endpoint==="push/key"&&method==="GET")return json({publicKey:Deno.env.get("VAPID_PUBLIC_KEY")||""},200,headers);
 
@@ -185,7 +192,26 @@ Deno.serve(async (req) => {
       if(method==="GET"){const {data,error}=await db.from("notifications").select("id,title,body,delivery_status,created_at,delivered_at,read_at").eq("user_id",uid).order("created_at",{ascending:false}).limit(50);return json(error?{error:"Unable to load notifications."}:{notifications:data||[]},error?500:200,headers);}
       const b=obj(await body());if(typeof b.id!=="string")return failRequest("Notification ID is invalid.",400);const {data,error}=await db.rpc("mark_my_notification_read",{p_notification_id:b.id});return json(error?{error:"Unable to mark notification as read."}:{read:data===true},error?500:200,headers);
     }
-    if((endpoint==="meals"||endpoint==="meals/save")&&(method==="GET"||method==="POST")){
+    if(endpoint==="meals/save"&&method==="POST"){
+      if(!await canWrite())return json(needEntitlement(),402,headers);
+      const form=await req.formData(),raw=form.get("meal");
+      if(typeof raw!=="string")return failRequest("Meal details are missing.",400);
+      let parsed:any;try{parsed=JSON.parse(raw);}catch{return failRequest("Meal details are invalid.",400);}
+      if(!Array.isArray(parsed.foods)||!parsed.foods.length||parsed.foods.length>15||!["breakfast","lunch","dinner","snack"].includes(parsed.meal_type))return failRequest("Meal details are invalid.",400);
+      const image=form.get("image");let photo_path:string|null=null;
+      if(image instanceof File){
+        if(!["image/jpeg","image/png","image/webp"].includes(image.type)||image.size>8*1024*1024)return failRequest("Photo must be JPG, PNG or WebP and smaller than 8 MB.",400);
+        const ext=image.type==="image/jpeg"?"jpg":image.type.split("/")[1];photo_path=uid+"/"+crypto.randomUUID()+"."+ext;
+        const {error}=await db.storage.from("meal-photos").upload(photo_path,image,{contentType:image.type,upsert:false});if(error)return failRequest("Unable to securely upload the meal photo.",503);
+      }
+      const totals=parsed.foods.reduce((a:any,x:any)=>({calories:a.calories+Number(x.nutrition?.calories||0),protein_g:a.protein_g+Number(x.nutrition?.protein_g||0),carbs_g:a.carbs_g+Number(x.nutrition?.carbs_g||0),fat_g:a.fat_g+Number(x.nutrition?.fat_g||0),fiber_g:a.fiber_g+Number(x.nutrition?.fiber_g||0)}),{calories:0,protein_g:0,carbs_g:0,fat_g:0,fiber_g:0});
+      const {data:meal,error}=await db.from("meals").insert({user_id:uid,meal_type:parsed.meal_type,meal_score:parsed.meal_score,photo_path,...totals,ai_estimate:true}).select("id").single();
+      if(error||!meal){if(photo_path)await db.storage.from("meal-photos").remove([photo_path]);return failRequest("Unable to save this meal.",500);}
+      const {error:itemError}=await db.from("meal_items").insert(parsed.foods.map((x:any)=>({meal_id:meal.id,user_id:uid,name:x.name,portion_grams:x.portion_grams,confidence:x.confidence??null,nutrition:x.nutrition})));
+      if(itemError){await db.from("meals").delete().eq("id",meal.id).eq("user_id",uid);if(photo_path)await db.storage.from("meal-photos").remove([photo_path]);return failRequest("Unable to save meal items.",500);}
+      if(admin)await award(admin,uid,5,"meal_logged",meal.id,3);return json({id:meal.id,saved:true},200,headers);
+    }
+    if(endpoint==="meals"&&(method==="GET"||method==="POST")){
       if(method==="GET"){let q=db.from("meals").select("id,meal_type,photo_path,calories,protein_g,carbs_g,fat_g,fiber_g,meal_score,ai_estimate,logged_at,meal_items(id,name,portion_grams,confidence,nutrition)").eq("user_id",uid).order("logged_at",{ascending:false}).limit(100);q=readRange(q);const {data,error}=await q;if(error)return failRequest("Unable to load meals.",500);const meals=await Promise.all((data||[]).map(async m=>{if(!m.photo_path)return {...m,photo_url:null};const {data:s}=await db.storage.from("meal-photos").createSignedUrl(m.photo_path,300);return {...m,photo_url:s?.signedUrl||null};}));return json({meals},200,headers);}
       if(!await canWrite())return json(needEntitlement(),402,headers);const b=obj(await body());if(!Array.isArray(b.items)||b.items.length<1||b.items.length>15)return failRequest("Meal details are invalid.",400);
       const totals=b.items.reduce((a:any,x:any)=>({calories:a.calories+Number(x.nutrition?.calories||0),protein_g:a.protein_g+Number(x.nutrition?.protein_g||0),carbs_g:a.carbs_g+Number(x.nutrition?.carbs_g||0),fat_g:a.fat_g+Number(x.nutrition?.fat_g||0),fiber_g:a.fiber_g+Number(x.nutrition?.fiber_g||0)}),{calories:0,protein_g:0,carbs_g:0,fat_g:0,fiber_g:0});

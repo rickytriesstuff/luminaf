@@ -27,8 +27,8 @@ export default function MealsPage(){
   }catch(e){setError(e instanceof Error?e.message:"Unable to save this meal.");}
   finally{setBusy(false);}
  }
- const fields:[keyof typeof initial,string,string][]=[
-  ["portion","Portion size","g"],["calories","Calories","kcal"],["protein","Protein","g"],["carbs","Carbohydrates","g"],["fat","Fat","g"],["fiber","Fibre","g"],["sugar","Sugar","g"],["sodium","Sodium","mg"]
+ const fields:[keyof typeof initial,string,string,number][]=[
+  ["portion","Portion size","g",3000],["calories","Calories","kcal",5000],["protein","Protein","g",300],["carbs","Carbohydrates","g",500],["fat","Fat","g",300],["fiber","Fibre","g",150],["sugar","Sugar","g",250],["sodium","Sodium","mg",15000]
  ];
  return <main className="mx-auto min-h-screen max-w-3xl px-5 py-8 pb-16">
   <a href="/" className="flex items-center gap-2 text-sm text-[#8CFFC9]"><ArrowLeft size={16}/> Dashboard</a>

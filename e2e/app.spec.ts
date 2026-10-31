@@ -14,7 +14,7 @@ test("GitHub Pages internal navigation stays inside the project path",async({pag
  await expect(page.getByRole("heading",{name:"Nutrition overview"})).toBeVisible();
  await page.goto("./");
  const profile=page.locator('a[aria-label="Profile and settings"]');
- await expect(profile).toHaveAttribute("href",/\\/luminaf\\/profile\\/$/);
+ await expect(profile).toHaveAttribute("href",/luminaf\/profile\/$/);
  await profile.click();
  await expect(page).toHaveURL(/\/luminaf\/profile\/$/);
  await expect(page.getByRole("heading",{name:"Profile & settings"})).toBeVisible();

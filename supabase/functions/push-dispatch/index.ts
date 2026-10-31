@@ -4,7 +4,7 @@ const supabaseUrl=Deno.env.get("SUPABASE_URL")||"";
 const serviceRoleKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"";
 const vapidPublicKey=Deno.env.get("VAPID_PUBLIC_KEY")||"";
 const vapidPrivateKey=Deno.env.get("VAPID_PRIVATE_KEY")||"";
-const vapidSubject=Deno.env.get("VAPID_SUBJECT")||"mailto:security@example.com";
+const vapidSubject=Deno.env.get("VAPID_SUBJECT")||"";\nconst siteBasePath=(Deno.env.get("SITE_BASE_PATH")||"/luminaf").replace(/\\/$/,"");
 const admin=createClient(supabaseUrl,serviceRoleKey,{auth:{persistSession:false,autoRefreshToken:false}});
 const copy:Record<string,{title:string;body:string}>={water:{title:"A little hydration break",body:"Take a moment to drink some water."},meals:{title:"Meal check-in",body:"If you have eaten, remember to log your meal."},movement:{title:"Time to move",body:"A short walk or stretch can be a lovely reset."},weight:{title:"Progress check-in",body:"If it feels useful today, log a body measurement."},winddown:{title:"Ease into the evening",body:"Give yourself a little room to wind down."}};
 function localMinute(timezone:string,now:Date){try{return new Intl.DateTimeFormat("en-GB",{timeZone:timezone,hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(now);}catch{return null;}}
@@ -12,7 +12,7 @@ function quietNow(value:unknown,minute:string){if(!value||typeof value!=="object
 Deno.serve(async request=>{
  if(request.method!=="POST")return new Response("Method not allowed",{status:405});
  if(!serviceRoleKey||request.headers.get("authorization")!=="Bearer "+serviceRoleKey)return new Response("Unauthorized",{status:401});
- if(!vapidPublicKey||!vapidPrivateKey)return Response.json({error:"VAPID keys are not configured."},{status:503});
+ if(!vapidPublicKey||!vapidPrivateKey||!vapidSubject)return Response.json({error:"VAPID keys or subject are not configured."},{status:503});
  webpush.setVapidDetails(vapidSubject,vapidPublicKey,vapidPrivateKey);
  const now=new Date(),scheduledFor=new Date(Math.floor(now.getTime()/60000)*60000).toISOString();
  const {data:reminders,error}=await admin.from("reminders").select("id,user_id,kind,local_time,timezone,enabled,quiet_hours").eq("enabled",true);
@@ -36,6 +36,6 @@ Deno.serve(async request=>{
  const {data:pending,error:pendingError}=await admin.from("notifications").select("id,user_id,title,body,attempts").eq("delivery_status","queued").gte("created_at",cutoff).lt("attempts",3).order("created_at",{ascending:true}).limit(100);
  if(pendingError)return Response.json({error:"Unable to load notification queue."},{status:500});
  let delivered=0;
- for(const item of pending||[]){const {data:subs,error:subError}=await admin.from("push_subscriptions").select("id,subscription").eq("user_id",item.user_id);if(subError)continue;if(!subs?.length){await admin.from("notifications").update({delivery_status:"no_subscription",attempts:3}).eq("id",item.id);continue;}let success=false,lastError="";for(const sub of subs){try{await webpush.sendNotification(sub.subscription,JSON.stringify({title:item.title,body:item.body,url:"/",notificationId:item.id}),{TTL:3600});success=true;}catch(err){const code=Number((err as {statusCode?:number}).statusCode||0);lastError=code?"Push provider returned "+code:"Push delivery failed";if(code===404||code===410)await admin.from("push_subscriptions").delete().eq("id",sub.id);}}const attempts=Number(item.attempts||0)+1;await admin.from("notifications").update({delivery_status:success?"delivered":attempts>=3?"failed":"queued",delivered_at:success?new Date().toISOString():null,attempts,last_error:success?null:lastError.slice(0,240)}).eq("id",item.id);if(success)delivered++;}
+ for(const item of pending||[]){const {data:subs,error:subError}=await admin.from("push_subscriptions").select("id,subscription").eq("user_id",item.user_id);if(subError)continue;if(!subs?.length){await admin.from("notifications").update({delivery_status:"no_subscription",attempts:3}).eq("id",item.id);continue;}let success=false,lastError="";for(const sub of subs){try{await webpush.sendNotification(sub.subscription,JSON.stringify({title:item.title,body:item.body,url:siteBasePath+"/",notificationId:item.id}),{TTL:3600});success=true;}catch(err){const code=Number((err as {statusCode?:number}).statusCode||0);lastError=code?"Push provider returned "+code:"Push delivery failed";if(code===404||code===410)await admin.from("push_subscriptions").delete().eq("id",sub.id);}}const attempts=Number(item.attempts||0)+1;await admin.from("notifications").update({delivery_status:success?"delivered":attempts>=3?"failed":"queued",delivered_at:success?new Date().toISOString():null,attempts,last_error:success?null:lastError.slice(0,240)}).eq("id",item.id);if(success)delivered++;}
  return Response.json({queued,delivered,checked:pending?.length||0});
 });

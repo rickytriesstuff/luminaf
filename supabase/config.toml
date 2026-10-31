@@ -1,4 +1,4 @@
-project_id = "luminaf"
+project_id = "cgigviwpnvlidguhspnf"
 
 [api]
 enabled = true
@@ -24,3 +24,4 @@ enable_signup = true
 
 [functions.api-gateway]
 verify_jwt = false
+\n[functions.push-dispatch]\nverify_jwt = false\n

@@ -2,8 +2,6 @@
 import {AnimatePresence,motion} from "framer-motion";
 import {useEffect,useState} from "react";
 import {usePathname} from "next/navigation";
-import {ArrowUpRight,LogIn} from "lucide-react";
-import {createClient} from "@/lib/supabase/client";
 const scenes=[
  {name:"MOVE WITH FREEDOM",caption:"A run, a fresh start.",image:"https://images.unsplash.com/photo-1538805060514-97d9cc17730c?auto=format&fit=crop&w=2200&q=85"},
  {name:"BUILD YOUR STRENGTH",caption:"Show up. Find your power.",image:"https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?auto=format&fit=crop&w=2200&q=90"},
@@ -14,10 +12,9 @@ const scenes=[
  {name:"BREATHE & RESET",caption:"Stretch, soften, begin again.",image:"https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=2200&q=85"}
 ];
 export function AppAtmosphere(){
- const pathname=usePathname(),[active,setActive]=useState(0),[signedIn,setSignedIn]=useState(false);
+ const pathname=usePathname(),[active,setActive]=useState(0);
  useEffect(()=>{const timer=window.setInterval(()=>setActive(v=>(v+1)%scenes.length),5200);return()=>window.clearInterval(timer);},[]);
- useEffect(()=>{let alive=true;try{const client=createClient();client.auth.getSession().then(({data})=>{if(alive)setSignedIn(!!data.session);});const {data}=client.auth.onAuthStateChange((_event,session)=>{if(alive)setSignedIn(!!session);});return()=>{alive=false;data.subscription.unsubscribe();};}catch{return()=>{alive=false;};}},[]);
- const scene=scenes[active],isAuth=pathname?.startsWith("/auth");
+ const scene=scenes[active];
  return <>
   <div className="app-atmosphere" aria-hidden="true">
    <AnimatePresence mode="sync">
@@ -26,6 +23,5 @@ export function AppAtmosphere(){
    <div className="app-atmosphere-shade"/>
    <div className="app-atmosphere-caption"><span className="app-atmosphere-kicker">{scene.name}</span><span>{scene.caption}</span><span className="app-atmosphere-progress"><i style={{width:((active+1)/scenes.length*100)+"%"}}/></span></div>
   </div>
-  {!isAuth&&<a href="/auth/" className="app-auth-entry"><span className="app-auth-icon">{signedIn?<ArrowUpRight size={15}/>:<LogIn size={15}/>}</span><span>{signedIn?"My account":"Sign in / Get started"}</span></a>}
  </>;
 }

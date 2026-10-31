@@ -27,12 +27,21 @@ jobs:
           node-version: 20
       - name: Install dependencies
         run: npm install
+      - name: Validate public Supabase configuration
+        run: |
+          test -n "$NEXT_PUBLIC_SUPABASE_URL" || (echo "Missing NEXT_PUBLIC_SUPABASE_URL repository variable" && exit 1)
+          test -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY" || (echo "Missing NEXT_PUBLIC_SUPABASE_ANON_KEY repository variable" && exit 1)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       - name: Build static site
         run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_SITE_BASE_PATH: ${{ vars.NEXT_PUBLIC_SITE_BASE_PATH || '/luminaf' }}
+      - name: Verify exported app routes
+        run: test -f out/index.html && test -f out/auth/index.html && test -f out/auth/callback/index.html && test -f out/onboarding/index.html
       - name: Add Pages marker
         run: touch out/.nojekyll
       - uses: actions/upload-pages-artifact@v3

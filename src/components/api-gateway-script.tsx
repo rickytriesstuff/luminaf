@@ -1,55 +1,100 @@
-/* eslint-disable @next/next/no-before-interactive-script-outside-document */
-import Script from "next/script";
+"use client";
 
-const bridgeCode = `(() => {
-  if (window.__luminafApiBridge) return;
+import { createClient } from "@/lib/supabase/client";
+
+declare global {
+  interface Window { __luminafApiBridge?: boolean; }
+}
+
+if (typeof window !== "undefined" && !window.__luminafApiBridge) {
   window.__luminafApiBridge = true;
-  const siteBasePath = ${JSON.stringify(process.env.NEXT_PUBLIC_SITE_BASE_PATH || "")};
-  document.addEventListener("click", (event) => { const node = event.target; const anchor = node instanceof Element ? node.closest("a[href]") : null; if (!anchor) return; const u = new URL(anchor.href, location.href); if (u.origin !== location.origin || !siteBasePath || u.pathname.startsWith(siteBasePath + "/") || u.pathname === siteBasePath || u.pathname.startsWith("/api/") || u.pathname.startsWith("/_next/")) return; u.pathname = siteBasePath + u.pathname; anchor.href = u.toString(); }, true);
+
   const nativeFetch = window.fetch.bind(window);
-  const supabaseUrl = ${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL || "")};
-  const anonKey = ${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "")};
-  window.fetch = async (input, init) => {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  const basePath = (process.env.NEXT_PUBLIC_SITE_BASE_PATH || "").replace(/\/$/, "");
+
+  const rewriteAnchor = (anchor: HTMLAnchorElement) => {
+    const raw = anchor.getAttribute("href");
+    if (!raw || raw.startsWith("//") || raw.startsWith("#")) return;
+    let url: URL;
+    try { url = new URL(raw, window.location.origin); } catch { return; }
+    if (url.origin !== window.location.origin) return;
+    if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/_next/")) return;
+
+    let pathname = url.pathname;
+    if (basePath && pathname !== basePath && !pathname.startsWith(basePath + "/")) {
+      pathname = basePath + (pathname.startsWith("/") ? pathname : "/" + pathname);
+    }
+    if (!pathname.endsWith("/") && !/\.[a-z0-9]{1,8}$/i.test(pathname)) pathname += "/";
+    const nextHref = pathname + url.search + url.hash;
+    if (nextHref !== raw) anchor.setAttribute("href", nextHref);
+  };
+
+  const rewriteLinks = () => {
+    document.querySelectorAll<HTMLAnchorElement>('a[href^="/"]').forEach(rewriteAnchor);
+  };
+
+  rewriteLinks();
+  if (document.documentElement) {
+    new MutationObserver(rewriteLinks).observe(document.documentElement, {
+      childList: true, subtree: true, attributes: true, attributeFilter: ["href"],
+    });
+  }
+  document.addEventListener("click", event => {
+    const target = event.target;
+    const anchor = target instanceof Element ? target.closest<HTMLAnchorElement>("a[href]") : null;
+    if (anchor) rewriteAnchor(anchor);
+  }, true);
+
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const original = input instanceof Request ? input : null;
-    const requestUrl = new URL(original ? original.url : String(input), window.location.href);
-    if (!requestUrl.pathname.startsWith("/api/")) return nativeFetch(input, init);
-    if (!supabaseUrl || !anonKey) return new Response(JSON.stringify({error:"Luminaf backend is not configured."}), {status:503,headers:{"Content-Type":"application/json"}});
-    const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
-    const storageKey = "sb-" + projectRef + "-auth-token";
-    let session = null;
-    try { const raw = localStorage.getItem(storageKey); if (raw) session = JSON.parse(raw); } catch {}
-    const refreshSession = async () => {
-      if (!session || !session.refresh_token) return "";
-      try {
-        const response = await nativeFetch(supabaseUrl.replace(/\/$/, "") + "/auth/v1/token?grant_type=refresh_token", {
-          method:"POST", headers:{"apikey":anonKey,"Content-Type":"application/json"},
-          body:JSON.stringify({refresh_token:session.refresh_token}), credentials:"omit"
-        });
-        if (!response.ok) return "";
-        const fresh = await response.json();
-        session = {...session,...fresh};
-        localStorage.setItem(storageKey,JSON.stringify(session));
-        return session.access_token || "";
-      } catch { return ""; }
-    };
-    let accessToken = session && session.access_token || "";
-    const expiresAt = session && (session.expires_at || (session.expires_in ? Math.floor(Date.now()/1000)+session.expires_in : 0));
-    if (session && session.refresh_token && (!accessToken || !expiresAt || expiresAt < Math.floor(Date.now()/1000)+60)) accessToken = await refreshSession() || accessToken;
+    const rawUrl = original ? original.url : input instanceof URL ? input.toString() : String(input);
+    const requestUrl = new URL(rawUrl, window.location.href);
+    if (requestUrl.origin !== window.location.origin || !requestUrl.pathname.startsWith("/api/")) {
+      return nativeFetch(input, init);
+    }
+    if (!supabaseUrl || !anonKey) {
+      return new Response(JSON.stringify({ error: "Luminaf backend configuration is missing." }), {
+        status: 503, headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    let accessToken = "";
+    try {
+      const { data, error } = await createClient().auth.getSession();
+      if (!error) accessToken = data.session?.access_token || "";
+    } catch {
+      // The gateway will return a clear authentication response if no session is available.
+    }
+
     const target = new URL(supabaseUrl.replace(/\/$/, "") + "/functions/v1/api-gateway");
     target.searchParams.set("path", requestUrl.pathname);
     if (requestUrl.search) target.searchParams.set("query", requestUrl.search.slice(1));
-    const headers = new Headers(original ? original.headers : undefined);
-    if (init && init.headers) new Headers(init.headers).forEach((v,k)=>headers.set(k,v));
+
+    const headers = new Headers(original?.headers);
+    if (init?.headers) new Headers(init.headers).forEach((value, key) => headers.set(key, value));
     headers.set("apikey", anonKey);
-    const method = (init && init.method) || (original && original.method) || "GET";
-    const body = init && "body" in init ? init.body : (original && method !== "GET" && method !== "HEAD" ? await original.clone().arrayBuffer() : undefined);
-    const send = (token) => { const requestHeaders = new Headers(headers); if (token) requestHeaders.set("Authorization","Bearer "+token); else requestHeaders.delete("Authorization"); return nativeFetch(target.toString(), {method,headers:requestHeaders,body,cache:"no-store",credentials:"omit",signal:init && init.signal ? init.signal : original ? original.signal : undefined}); };
-    let response = await send(accessToken);
-    if (response.status === 401 && session && session.refresh_token) { const renewed = await refreshSession(); if (renewed) response = await send(renewed); }
-    return response;
+    if (accessToken) headers.set("Authorization", "Bearer " + accessToken);
+    else headers.delete("Authorization");
+
+    const method = init?.method || original?.method || "GET";
+    let body: BodyInit | null | undefined = init && "body" in init ? init.body : undefined;
+    if (body === undefined && original && method !== "GET" && method !== "HEAD") {
+      body = await original.clone().arrayBuffer();
+    }
+    return nativeFetch(target.toString(), {
+      ...init,
+      method,
+      headers,
+      body,
+      cache: "no-store",
+      credentials: "omit",
+      signal: init?.signal || original?.signal,
+    });
   };
-})();`;
+}
 
 export function ApiGatewayScript() {
-  return <Script id="luminaf-api-gateway" strategy="beforeInteractive">{bridgeCode}</Script>;
+  return null;
 }

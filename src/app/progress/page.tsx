@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import {CategorySnapshot} from "@/components/category-snapshot";
 import { ArrowLeft, Footprints, Flame, Scale, Trophy, CalendarDays, Target, Moon, RefreshCw } from "lucide-react";
 import {CinematicScene} from "@/components/cinematic-scene";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";

@@ -1,7 +1,6 @@
 "use client";
 import {AnimatePresence,motion} from "framer-motion";
 import {useEffect,useState} from "react";
-import {usePathname} from "next/navigation";
 const scenes=[
  {name:"MOVE WITH FREEDOM",caption:"A run, a fresh start.",image:"https://images.unsplash.com/photo-1538805060514-97d9cc17730c?auto=format&fit=crop&w=2200&q=85"},
  {name:"BUILD YOUR STRENGTH",caption:"Show up. Find your power.",image:"https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?auto=format&fit=crop&w=2200&q=90"},
@@ -12,7 +11,7 @@ const scenes=[
  {name:"BREATHE & RESET",caption:"Stretch, soften, begin again.",image:"https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=2200&q=85"}
 ];
 export function AppAtmosphere(){
- const pathname=usePathname(),[active,setActive]=useState(0);
+ const [active,setActive]=useState(0);
  useEffect(()=>{const timer=window.setInterval(()=>setActive(v=>(v+1)%scenes.length),5200);return()=>window.clearInterval(timer);},[]);
  const scene=scenes[active];
  return <>

@@ -5,6 +5,12 @@ export default defineConfig({
  forbidOnly:!!process.env.CI,
  retries:process.env.CI?1:0,
  reporter:"list",
- use:{baseURL:"http://127.0.0.1:3000",trace:"retain-on-failure",...devices["Desktop Chrome"]},
- webServer:{command:"npm run dev",url:"http://127.0.0.1:3000",reuseExistingServer:!process.env.CI,timeout:120_000},
+ use:{baseURL:"http://127.0.0.1:3000/luminaf/",trace:"retain-on-failure",...devices["Desktop Chrome"]},
+ webServer:{
+  command:"npm run dev",
+  url:"http://127.0.0.1:3000/luminaf/",
+  reuseExistingServer:!process.env.CI,
+  timeout:120_000,
+  env:{...process.env,NEXT_PUBLIC_SITE_BASE_PATH:"/luminaf"},
+ },
 });

@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useMemo,useState} from "react";
+import {CategorySnapshot} from "@/components/category-snapshot";
 import {ArrowLeft,Check,Flame,Plus,Droplets,Moon,Footprints,Sparkles} from "lucide-react";
 import {CinematicScene} from "@/components/cinematic-scene";
 type Habit={id:string;name:string;target:string|null;active:boolean;created_at:string;detail?:string;goal?:string;icon?:string};

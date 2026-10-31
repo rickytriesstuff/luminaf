@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
 
     if(endpoint==="health/symptoms")return json({error:"Symptom screening is disabled in this release. For severe, sudden or worsening symptoms, seek urgent medical care."},503,headers);
     if(endpoint==="weather"&&method==="GET"){
-      const lat=Number(url.searchParams.get("lat")),lon=Number(url.searchParams.get("lon"));
+      const lat=Number(routeParams.get("lat")),lon=Number(routeParams.get("lon"));
       if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)return json({error:"A valid location is required."},400,headers);
       const w=await fetch("https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m");
       return json(await w.json(),w.ok?200:502,headers);
@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
     const authError=requireUser();if(authError)return await respond(Promise.resolve(authError));
     const uid=user!.id;
     const canWrite=async()=>await entitlement(db,uid);
-    const readRange=(q:any)=>{const from=url.searchParams.get("from"),to=url.searchParams.get("to");if(from)q=q.gte("logged_at",from);if(to)q=q.lte("logged_at",to);return q;};
+    const readRange=(q:any)=>{const from=routeParams.get("from"),to=routeParams.get("to");if(from)q=q.gte("logged_at",from);if(to)q=q.lte("logged_at",to);return q;};
 
     if(endpoint==="water"&&method==="GET"){
       const {data,error}=await readRange(db.from("water_logs").select("id,amount_ml,logged_at").eq("user_id",uid).order("logged_at",{ascending:false}).limit(200));
@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
       if(method==="GET"){const {data,error}=await db.from("notifications").select("id,title,body,delivery_status,created_at,delivered_at,read_at").eq("user_id",uid).order("created_at",{ascending:false}).limit(50);return json(error?{error:"Unable to load notifications."}:{notifications:data||[]},error?500:200,headers);}
       const b=obj(await body());if(typeof b.id!=="string")return fail("Notification ID is invalid.",400);const {data,error}=await db.rpc("mark_my_notification_read",{p_notification_id:b.id});return json(error?{error:"Unable to mark notification as read."}:{read:data===true},error?500:200,headers);
     }
-    if(endpoint==="meals"&&(method==="GET"||method==="POST")){
+    if((endpoint==="meals"||endpoint==="meals/save")&&(method==="GET"||method==="POST")){
       if(method==="GET"){let q=db.from("meals").select("id,meal_type,photo_path,calories,protein_g,carbs_g,fat_g,fiber_g,meal_score,ai_estimate,logged_at,meal_items(id,name,portion_grams,confidence,nutrition)").eq("user_id",uid).order("logged_at",{ascending:false}).limit(100);q=readRange(q);const {data,error}=await q;if(error)return fail("Unable to load meals.",500);const meals=await Promise.all((data||[]).map(async m=>{if(!m.photo_path)return {...m,photo_url:null};const {data:s}=await db.storage.from("meal-photos").createSignedUrl(m.photo_path,300);return {...m,photo_url:s?.signedUrl||null};}));return json({meals},200,headers);}
       if(!await canWrite())return json(needEntitlement(),402,headers);const b=obj(await body());if(!Array.isArray(b.items)||b.items.length<1||b.items.length>15)return fail("Meal details are invalid.",400);
       const totals=b.items.reduce((a:any,x:any)=>({calories:a.calories+Number(x.nutrition?.calories||0),protein_g:a.protein_g+Number(x.nutrition?.protein_g||0),carbs_g:a.carbs_g+Number(x.nutrition?.carbs_g||0),fat_g:a.fat_g+Number(x.nutrition?.fat_g||0),fiber_g:a.fiber_g+Number(x.nutrition?.fiber_g||0)}),{calories:0,protein_g:0,carbs_g:0,fat_g:0,fiber_g:0});

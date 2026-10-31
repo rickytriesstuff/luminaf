@@ -2,6 +2,7 @@
 import {useState} from "react";
 import {ArrowLeft,BookOpen,CheckCircle2,Save,Utensils} from "lucide-react";
 import {CinematicScene} from "@/components/cinematic-scene";
+import {MealScanner} from "@/components/meal-scanner";
 
 const initial={name:"",portion:"100",calories:"",protein:"",carbs:"",fat:"",fiber:"",sugar:"",sodium:""};
 export default function MealsPage(){
@@ -35,7 +36,8 @@ export default function MealsPage(){
   <a href="/" className="flex items-center gap-2 text-sm text-[#8CFFC9]"><ArrowLeft size={16}/> Dashboard</a>
   <div className="mt-7"><CinematicScene scene="food" eyebrow="YOUR FOOD JOURNAL" title="Make every bite count." description="Capture what you eat, explore colorful ingredients and build a kinder relationship with your food." metric={form.name.trim()?1:0} metricLabel="MEAL IN PROGRESS" detail={form.name.trim()||"Ready for your first ingredient"}/></div><p className="mt-8 text-xs tracking-[.2em] text-[#8CFFC9]">NUTRITION JOURNAL</p>
   <h1 className="mt-2 text-3xl font-semibold">Log a meal</h1>
-  <p className="mt-2 text-sm leading-relaxed text-[#91A49A]">Add food and its nutrition information manually. Your saved entries feed the Nutrition Overview and Progress charts. AI photo scanning will be added in a later release.</p>
+  <p className="mt-2 text-sm leading-relaxed text-[#91A49A]">Add food and its nutrition information manually. Your saved entries feed the Nutrition Overview and Progress charts. Use the AI photo scanner below or enter nutrition details manually.</p>
+  <MealScanner/>
   <section className="panel mt-7 rounded-3xl p-5 sm:p-6">
    <div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-xl bg-[#10251B] text-[#8CFFC9]"><Utensils/></span><div><h2 className="font-semibold">Food details</h2><p className="text-xs text-[#71847A]">Enter one food item per entry</p></div></div>
    <label className="mt-5 block text-xs text-[#91A49A]">Food name<input value={form.name} onChange={e=>update("name",e.target.value)} maxLength={100} placeholder="e.g. Rice and beans" className="mt-2 w-full rounded-xl border border-[#26372E] bg-[#070B09] p-3 text-sm text-white"/></label>

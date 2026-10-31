@@ -4,7 +4,8 @@ const supabaseUrl=Deno.env.get("SUPABASE_URL")||"";
 const serviceRoleKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"";
 const vapidPublicKey=Deno.env.get("VAPID_PUBLIC_KEY")||"";
 const vapidPrivateKey=Deno.env.get("VAPID_PRIVATE_KEY")||"";
-const vapidSubject=Deno.env.get("VAPID_SUBJECT")||"";\nconst siteBasePath=(Deno.env.get("SITE_BASE_PATH")||"/luminaf").replace(/\\/$/,"");
+const vapidSubject=Deno.env.get("VAPID_SUBJECT")||"";
+const siteBasePath=(Deno.env.get("SITE_BASE_PATH")||"/luminaf").replace(/\/$/,"");
 const admin=createClient(supabaseUrl,serviceRoleKey,{auth:{persistSession:false,autoRefreshToken:false}});
 const copy:Record<string,{title:string;body:string}>={water:{title:"A little hydration break",body:"Take a moment to drink some water."},meals:{title:"Meal check-in",body:"If you have eaten, remember to log your meal."},movement:{title:"Time to move",body:"A short walk or stretch can be a lovely reset."},weight:{title:"Progress check-in",body:"If it feels useful today, log a body measurement."},winddown:{title:"Ease into the evening",body:"Give yourself a little room to wind down."}};
 function localMinute(timezone:string,now:Date){try{return new Intl.DateTimeFormat("en-GB",{timeZone:timezone,hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(now);}catch{return null;}}

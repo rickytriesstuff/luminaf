@@ -19,11 +19,12 @@ test("GitHub Pages internal navigation stays inside the project path",async({pag
  await expect(page).toHaveURL(/\/luminaf\/profile\/$/);
  await expect(page.getByRole("heading",{name:"Profile & settings"})).toBeVisible();
 });
-test("deferred premium and push pages show clear release status",async({page})=>{
+test("subscription and reminder settings pages render",async({page})=>{
  await page.goto("subscribe/");
- await expect(page.getByRole("heading",{name:/Premium features are coming later/i})).toBeVisible();
+ await expect(page.getByRole("heading",{name:/More support for your wellness journey/i})).toBeVisible();
+ await expect(page.getByRole("button",{name:/Payments setup pending/i})).toBeDisabled();
  await page.goto("reminders/");
- await expect(page.getByRole("heading",{name:/Reminders are coming later/i})).toBeVisible();
+ await expect(page.getByRole("heading",{name:/Build a rhythm that supports you/i})).toBeVisible();
  await page.goto("notifications/");
  await expect(page.getByRole("heading",{name:/Notifications are coming later/i})).toBeVisible();
 });
@@ -33,12 +34,13 @@ test("health check-in keeps its medical disclaimer visible",async({page})=>{
  await expect(page.getByText(/not medical advice or a diagnosis/i)).toBeVisible();
  await expect(page.getByText(/do not wait for this tool/i)).toBeVisible();
 });
-test("manual meal journal renders without AI scanner credentials",async({page})=>{
+test("meal journal renders scanner and manual food entry",async({page})=>{
  await page.goto("meals/");
  await expect(page.getByRole("heading",{name:"Log a meal"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Scan what’s on your plate"})).toBeVisible();
+ await expect(page.getByText(/Add a meal photo/i)).toBeVisible();
  await expect(page.getByLabel("Food name")).toBeVisible();
  await expect(page.getByRole("button",{name:"Save meal"})).toBeDisabled();
- await expect(page.getByText(/AI photo scanning will be added in a later release/i)).toBeVisible();
 });
 test("PWA manifest is served beneath the GitHub Pages base path",async({request})=>{
  const response=await request.get("manifest.webmanifest");

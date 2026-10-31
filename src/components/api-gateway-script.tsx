@@ -1,115 +1,95 @@
 "use client";
 
-import { useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 declare global {
   interface Window { __luminafApiBridge?: boolean; }
 }
 
-export function ApiGatewayScript() {
-  useEffect(() => {
-    if (window.__luminafApiBridge) return;
-    window.__luminafApiBridge = true;
+// Install synchronously when the root-layout client bundle loads. This happens
+// before page-level effects make /api requests, avoiding a first-render race.
+if (typeof window !== "undefined" && !window.__luminafApiBridge) {
+  window.__luminafApiBridge = true;
+  const nativeFetch = window.fetch.bind(window);
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  const basePath = (process.env.NEXT_PUBLIC_SITE_BASE_PATH || "").replace(/\/$/, "");
 
-    const nativeFetch = window.fetch.bind(window);
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-    const basePath = (process.env.NEXT_PUBLIC_SITE_BASE_PATH || "").replace(/\/$/, "");
-
-    const rewriteAnchor = (anchor: HTMLAnchorElement) => {
-      const raw = anchor.getAttribute("href");
-      if (!raw || raw.startsWith("//") || raw.startsWith("#")) return;
-      let url: URL;
-      try { url = new URL(raw, window.location.origin); } catch { return; }
-      if (url.origin !== window.location.origin) return;
-      if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/_next/")) return;
-
-      let pathname = url.pathname;
-      if (basePath && pathname !== basePath && !pathname.startsWith(basePath + "/")) {
-        pathname = basePath + (pathname.startsWith("/") ? pathname : "/" + pathname);
-      }
-      // GitHub Pages static exports use folder/index.html routes. Always navigate to the folder URL.
-      if (!pathname.endsWith("/") && !/\.[a-z0-9]{1,8}$/i.test(pathname)) pathname += "/";
-      const nextHref = pathname + url.search + url.hash;
-      if (nextHref !== raw) anchor.setAttribute("href", nextHref);
-    };
-
-    const rewriteLinks = () => {
-      document.querySelectorAll<HTMLAnchorElement>('a[href]').forEach(rewriteAnchor);
-    };
+  const rewriteAnchor = (anchor: HTMLAnchorElement) => {
+    const raw = anchor.getAttribute("href");
+    if (!raw || raw.startsWith("//") || raw.startsWith("#")) return;
+    let url: URL;
+    try { url = new URL(raw, window.location.origin); } catch { return; }
+    if (url.origin !== window.location.origin) return;
+    if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/_next/")) return;
+    let pathname = url.pathname;
+    if (basePath && pathname !== basePath && !pathname.startsWith(basePath + "/")) {
+      pathname = basePath + (pathname.startsWith("/") ? pathname : "/" + pathname);
+    }
+    if (!pathname.endsWith("/") && !/\.[a-z0-9]{1,8}$/i.test(pathname)) pathname += "/";
+    const nextHref = pathname + url.search + url.hash;
+    if (nextHref !== raw) anchor.setAttribute("href", nextHref);
+  };
+  const rewriteLinks = () => document.querySelectorAll<HTMLAnchorElement>("a[href]").forEach(rewriteAnchor);
+  if (document.documentElement) {
     rewriteLinks();
-    const observer = new MutationObserver(rewriteLinks);
-    observer.observe(document.documentElement, {
+    new MutationObserver(rewriteLinks).observe(document.documentElement, {
       childList: true, subtree: true, attributes: true, attributeFilter: ["href"],
     });
-    const onClick = (event: MouseEvent) => {
-      const target = event.target;
-      const anchor = target instanceof Element ? target.closest<HTMLAnchorElement>("a[href]") : null;
-      if (anchor) rewriteAnchor(anchor);
-    };
-    document.addEventListener("click", onClick, true);
+  }
+  document.addEventListener("click", event => {
+    const target = event.target;
+    const anchor = target instanceof Element ? target.closest<HTMLAnchorElement>("a[href]") : null;
+    if (anchor) rewriteAnchor(anchor);
+  }, true);
 
-    const originalFetch = window.fetch;
-    window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-      const original = input instanceof Request ? input : null;
-      const rawUrl = original ? original.url : input instanceof URL ? input.toString() : String(input);
-      const requestUrl = new URL(rawUrl, window.location.href);
-      if (requestUrl.origin !== window.location.origin || !requestUrl.pathname.startsWith("/api/")) {
-        return nativeFetch(input, init);
-      }
-      if (!supabaseUrl || !anonKey) {
-        return new Response(JSON.stringify({ error: "Luminaf backend configuration is missing. Please contact support." }), {
-          status: 503, headers: { "Content-Type": "application/json" },
-        });
-      }
-
-      let accessToken = "";
-      try {
-        const { data, error } = await createClient().auth.getSession();
-        if (!error) accessToken = data.session?.access_token || "";
-      } catch {
-        // The API returns an explicit authentication response when no session exists.
-      }
-
-      const target = new URL(supabaseUrl.replace(/\/$/, "") + "/functions/v1/api-gateway");
-      target.searchParams.set("path", requestUrl.pathname);
-      if (requestUrl.search) target.searchParams.set("query", requestUrl.search.slice(1));
-
-      const headers = new Headers(original?.headers);
-      if (init?.headers) new Headers(init.headers).forEach((value, key) => headers.set(key, value));
-      headers.set("apikey", anonKey);
-      if (accessToken) headers.set("Authorization", "Bearer " + accessToken);
-      else headers.delete("Authorization");
-
-      const method = init?.method || original?.method || "GET";
-      let body: BodyInit | null | undefined = init && "body" in init ? init.body : undefined;
-      if (body === undefined && original && method !== "GET" && method !== "HEAD") {
-        body = await original.clone().arrayBuffer();
-      }
-      const controller = new AbortController();
-      const upstreamSignal = init?.signal || original?.signal;
-      const abortUpstream = () => controller.abort(upstreamSignal?.reason);
-      if (upstreamSignal?.aborted) abortUpstream();
-      else upstreamSignal?.addEventListener("abort", abortUpstream, { once: true });
-      const timeout = window.setTimeout(() => controller.abort(new DOMException("Request timed out", "TimeoutError")), 20000);
-      try {
-        return await nativeFetch(target.toString(), {
-          method, headers, body, cache: "no-store", credentials: "omit", signal: controller.signal,
-        });
-      } finally {
-        window.clearTimeout(timeout);
-        upstreamSignal?.removeEventListener("abort", abortUpstream);
-      }
-    };
-
-    return () => {
-      observer.disconnect();
-      document.removeEventListener("click", onClick, true);
-      if (window.fetch !== originalFetch) window.fetch = originalFetch;
-      window.__luminafApiBridge = false;
-    };
-  }, []);
-
-  return null;
+  window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const original = input instanceof Request ? input : null;
+    const rawUrl = original ? original.url : input instanceof URL ? input.toString() : String(input);
+    const requestUrl = new URL(rawUrl, window.location.href);
+    if (requestUrl.origin !== window.location.origin || !requestUrl.pathname.startsWith("/api/")) {
+      return nativeFetch(input, init);
+    }
+    if (!supabaseUrl || !anonKey) {
+      return new Response(JSON.stringify({ error: "Luminaf backend configuration is missing. Please contact support." }), {
+        status: 503, headers: { "Content-Type": "application/json" },
+      });
+    }
+    let accessToken = "";
+    try {
+      const { data, error } = await createClient().auth.getSession();
+      if (!error) accessToken = data.session?.access_token || "";
+    } catch {
+      // The gateway returns a clear authentication response if no session exists.
+    }
+    const target = new URL(supabaseUrl.replace(/\/$/, "") + "/functions/v1/api-gateway");
+    target.searchParams.set("path", requestUrl.pathname);
+    if (requestUrl.search) target.searchParams.set("query", requestUrl.search.slice(1));
+    const headers = new Headers(original?.headers);
+    if (init?.headers) new Headers(init.headers).forEach((value, key) => headers.set(key, value));
+    headers.set("apikey", anonKey);
+    if (accessToken) headers.set("Authorization", "Bearer " + accessToken);
+    else headers.delete("Authorization");
+    const method = init?.method || original?.method || "GET";
+    let body: BodyInit | null | undefined = init && "body" in init ? init.body : undefined;
+    if (body === undefined && original && method !== "GET" && method !== "HEAD") {
+      body = await original.clone().arrayBuffer();
+    }
+    const controller = new AbortController();
+    const upstreamSignal = init?.signal || original?.signal;
+    const abortUpstream = () => controller.abort(upstreamSignal?.reason);
+    if (upstreamSignal?.aborted) abortUpstream();
+    else upstreamSignal?.addEventListener("abort", abortUpstream, { once: true });
+    const timeout = window.setTimeout(() => controller.abort(new DOMException("Request timed out", "TimeoutError")), 20000);
+    try {
+      return await nativeFetch(target.toString(), {
+        method, headers, body, cache: "no-store", credentials: "omit", signal: controller.signal,
+      });
+    } finally {
+      window.clearTimeout(timeout);
+      upstreamSignal?.removeEventListener("abort", abortUpstream);
+    }
+  };
 }
+
+export function ApiGatewayScript() { return null; }

@@ -49,7 +49,7 @@ async function verifyStripe(body: string, header: string, secret: string) {
 Deno.serve(async (req) => {
   const origin=req.headers.get("origin"), headers=cors(origin);
   if(req.method==="OPTIONS")return new Response(null,{status:204,headers});
-  const url=new URL(req.url), path=url.searchParams.get("path")||"/", method=req.method;
+  const url=new URL(req.url), path=url.searchParams.get("path")||"/", routeParams=new URLSearchParams(url.searchParams.get("query")||""), method=req.method;
   const endpoint=path.replace(/^\/api\//,"").replace(/\/$/,"");
   const authHeader=req.headers.get("authorization")||"";
   const token=authHeader.startsWith("Bearer ")?authHeader.slice(7):"";

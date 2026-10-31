@@ -4,9 +4,11 @@
 
 GitHub Pages remains the frontend host. Supabase remains the backend. Cloudflare Workers is not part of this deployment plan.
 
-**Important: do not turn on `output: "export"` or publish the current Next.js build yet.** The current application is not static-export compatible. It still contains 27 Next.js API route handlers, server actions, a cookie-refresh middleware, server-side Supabase clients, a server callback route and Node-only APIs. A static export cannot run those handlers. Switching the config first would break sign-in and app features.
+The migration implementation is committed on `feat/github-pages-supabase-edge-migration`. This branch enables Next.js static export, replaces server-side authentication flows, removes the Next.js API handlers and routes the existing browser `/api/*` calls through a Supabase Edge Function gateway. The previous production branch is not changed by this work.
 
-This document is the migration blueprint. The work is complete only after each server feature has been ported, browser callers have been changed to invoke Edge Functions, the static export succeeds, and the production smoke tests pass.
+**Production is not yet cut over.** The static build, Deno checks, deployed Edge Functions, migration state and live sign-in/data flows still need to pass verification. Do not merge or publish the branch until GitHub Actions succeeds and the deployment checklist is complete.
+
+The implementation uses one authenticated `api-gateway` Edge Function with operation paths, rather than maintaining a separate Edge Function deployment for every API route. The separate `push-dispatch` function remains the scheduled notification worker.
 
 ## Target architecture
 
@@ -19,88 +21,91 @@ This document is the migration blueprint. The work is complete only after each s
 
 Browser code may contain only the Supabase project URL and publishable/anon key. Never put a service-role/secret key, OpenAI key, Stripe secret, webhook secret, VAPID private key or cron secret into a `NEXT_PUBLIC_*` variable or static asset.
 
-## Critical frontend changes before static export
+## Frontend conversion completed on the migration branch
 
-1. Replace all Next.js server actions in `src/app/auth/actions.ts` and `src/app/onboarding/actions.ts` with browser Supabase Auth calls and client-side profile writes protected by RLS.
-2. Rewrite `src/app/auth/page.tsx` and `src/app/onboarding/page.tsx` as client-compatible static pages. Remove server `searchParams`, `cookies()`, `redirect()` and `"use server"` dependencies.
-3. Replace `src/middleware.ts` with a client-side session provider/route guard. Static hosting cannot refresh Supabase cookies through Next middleware. Use `supabase.auth.getSession()` for UI state and `getUser()`/JWT validation at the function boundary for protected operations. Do not treat client route guards as authorization.
-4. Replace `src/app/auth/callback/route.ts` with a static `/auth/callback/` page that reads the OAuth `code` from the URL, calls `supabase.auth.exchangeCodeForSession(code)`, then routes to onboarding/home. Handle errors and clear the query string after processing.
-5. Replace every `fetch("/api/...")` with a typed API client based on `supabase.functions.invoke()`. Preserve each operation's HTTP semantics, validation, error messages, multipart image handling and response shape. Do not silently point the old relative URLs at GitHub Pages.
-6. Convert any page/component importing `@/lib/supabase/server`, `@/lib/supabase/admin`, Next server actions, `next/headers`, or dynamic server-only data fetching into browser-side Supabase reads or Edge Function calls. Audit all App Router pages, not just the dashboard.
-7. Set `output: "export"`, `images.unoptimized: true`, and the correct base path only after the above work is complete. For the default project Pages URL the path is `/luminaf`; for a configured custom domain at the root it is empty. Confirm the actual Pages domain in repository Settings before choosing. Next's `basePath` must be applied consistently to all assets, manifest icons, service-worker scope/start URL, OAuth redirects and plain HTML anchors. Replace root-relative `href="/..."` links with a shared `sitePath()` helper or Next links that respect basePath.
-8. Export-compatible route pages need static shells. Ensure no route relies on request-time search params or dynamic server rendering. Use `trailingSlash: true` or equivalent static route handling and test deep links and refreshes on Pages.
+- `next.config.mjs` now uses `output: "export"`, `trailingSlash: true`, `images.unoptimized: true` and the build-time `NEXT_PUBLIC_SITE_BASE_PATH`.
+- Email/password, Google and Apple authentication now use the Supabase browser client. Static callback and password-reset pages exchange PKCE codes and update passwords.
+- Onboarding writes the signed-in user's profile through the publishable client and RLS.
+- Next middleware, server actions, callback route handler and all `src/app/api/**/route.ts` handlers have been removed from this branch.
+- The root layout loads a before-interactive bridge that forwards existing `fetch("/api/...")` requests to the Supabase `api-gateway`, including the access token, request body and query parameters. It refreshes expired Supabase access tokens from the stored refresh token.
+- The bridge also prefixes root-relative anchors for the Pages project subpath. The PWA manifest, service worker registration, cache scope and notification click URLs are base-path aware.
+- Account export now downloads through the API bridge. Account deletion and sign-out use the browser/Supabase gateway flows.
 
+The static build and runtime behavior remain unverified until the latest GitHub Actions run finishes. Review any build or test failures before merging.
+ 
 ## Edge Function migration inventory
 
 Keep the existing public app routes/feature contracts, but move their implementations into the following functions. Each authenticated function should validate the caller's user JWT and use a user-scoped Supabase client so RLS remains effective. Use an admin/service-role client only for narrowly scoped tasks that genuinely require it.
 
 | Existing Next API route | New Edge Function / operation | Required behavior |
 |---|---|---|
-| `GET/POST /api/water` | `wellness-api` / water | Read and create water logs; validate amount and date; user ownership and entitlement checks |
-| `GET/POST /api/habits` | `wellness-api` / habits | List/create habits; preserve current schema and ownership |
-| `POST /api/habits/checkins` | `wellness-api` / habit-checkins | Idempotent daily check-ins and points rules |
-| `GET/POST /api/workouts` | `wellness-api` / workouts | Create/list workout logs |
-| `GET/POST /api/sleep` | `wellness-api` / sleep | Create/list sleep logs |
-| `GET/POST /api/metrics` | `wellness-api` / metrics | Create/list body metrics |
-| `GET/POST /api/reminders` | `wellness-api` / reminders | Save/list reminder preferences and quiet hours |
-| `GET /api/progress` | `wellness-api` / progress | Aggregate user-owned progress only |
-| `GET /api/points` | `wellness-api` / points | Read trusted points summary; do not accept client-awarded points |
-| `GET /api/exercises` | `wellness-api` / exercises | Return exercise library |
-| `GET/POST /api/profile` | `wellness-api` / profile | Read/update current user's profile |
-| `GET /api/notifications` | `wellness-api` / notifications | Read current user's notifications and read state |
-| `GET/POST /api/friends` | `social-api` / friends | Friend list and invitation creation; expose only approved display name/points |
-| `POST /api/friends/invite` | `social-api` / invite | Token generation, expiry and rate limiting |
-| `POST /api/friends/accept` | `social-api` / accept | Validate one-time invitation token and create friendship |
-| `GET/POST /api/meals` | `meals-api` / meals | List/save meal records with ownership and entitlement checks |
-| `POST /api/meals/save` | `meals-api` / save | Validate AI result before storing |
-| `POST /api/meals/analyze` | `meals-api` / analyze | Accept bounded image upload, rate-limit, call OpenAI from server secret, validate structured output |
-| `GET /api/health/symptoms` | `health-api` / symptoms | Preserve fail-closed behavior; do not enable generated diagnosis or unsafe medical advice |
-| `GET /api/weather` | `wellness-api` / weather | Keep provider key server-side if one is ever required; validate location input |
-| `GET /api/push/key` | `push-api` / public-key | Return only the VAPID public key |
-| `POST/DELETE /api/push/subscriptions` | `push-api` / subscriptions | Bind subscriptions to authenticated user; delete only caller-owned endpoint |
+| `GET/POST /api/water` | `api-gateway` / water | Read and create water logs; validate amount and date; user ownership and entitlement checks |
+| `GET/POST /api/habits` | `api-gateway` / habits | List/create habits; preserve current schema and ownership |
+| `POST /api/habits/checkins` | `api-gateway` / habit-checkins | Idempotent daily check-ins and points rules |
+| `GET/POST /api/workouts` | `api-gateway` / workouts | Create/list workout logs |
+| `GET/POST /api/sleep` | `api-gateway` / sleep | Create/list sleep logs |
+| `GET/POST /api/metrics` | `api-gateway` / metrics | Create/list body metrics |
+| `GET/POST /api/reminders` | `api-gateway` / reminders | Save/list reminder preferences and quiet hours |
+| `GET /api/progress` | `api-gateway` / progress | Aggregate user-owned progress only |
+| `GET /api/points` | `api-gateway` / points | Read trusted points summary; do not accept client-awarded points |
+| `GET /api/exercises` | `api-gateway` / exercises | Return exercise library |
+| `GET/POST /api/profile` | `api-gateway` / profile | Read/update current user's profile |
+| `GET /api/notifications` | `api-gateway` / notifications | Read current user's notifications and read state |
+| `GET/POST /api/friends` | `api-gateway` / friends | Friend list and invitation creation; expose only approved display name/points |
+| `POST /api/friends/invite` | `api-gateway` / invite | Token generation, expiry and rate limiting |
+| `POST /api/friends/accept` | `api-gateway` / accept | Validate one-time invitation token and create friendship |
+| `GET/POST /api/meals` | `api-gateway` / meals | List/save meal records with ownership and entitlement checks |
+| `POST /api/meals/save` | `api-gateway` / save | Validate AI result before storing |
+| `POST /api/meals/analyze` | `api-gateway` / analyze | Accept bounded image upload, rate-limit, call OpenAI from server secret, validate structured output |
+| `GET /api/health/symptoms` | `api-gateway` / symptoms | Preserve fail-closed behavior; do not enable generated diagnosis or unsafe medical advice |
+| `GET /api/weather` | `api-gateway` / weather | Keep provider key server-side if one is ever required; validate location input |
+| `GET /api/push/key` | `api-gateway` / public-key | Return only the VAPID public key |
+| `POST/DELETE /api/push/subscriptions` | `api-gateway` / subscriptions | Bind subscriptions to authenticated user; delete only caller-owned endpoint |
 | Existing `push-dispatch` | `push-dispatch` | Retain scheduled reminder/trial queue delivery; authenticate service/cron invocation independently of browser sessions |
-| `GET /api/billing/status` | `billing-api` / status | Read current user's entitlement/subscription status |
-| `POST /api/billing/checkout` | `billing-api` / checkout | Create Stripe checkout session server-side; never trust client price or user ID |
-| `POST /api/billing/portal` | `billing-api` / portal | Create customer portal session for authenticated customer |
-| `POST /api/webhooks/stripe` | `stripe-webhook` | Public webhook; verify Stripe signature over raw body; idempotently record events and update subscription |
-| `GET /api/account/export` | `account-api` / export | Export only caller-owned data and private object metadata |
-| `POST /api/account/delete` | `account-api` / delete | Confirm deletion, cancel eligible billing, remove private photos and auth user safely |
+| `GET /api/billing/status` | `api-gateway` / status | Read current user's entitlement/subscription status |
+| `POST /api/billing/checkout` | `api-gateway` / checkout | Create Stripe checkout session server-side; never trust client price or user ID |
+| `POST /api/billing/portal` | `api-gateway` / portal | Create customer portal session for authenticated customer |
+| `POST /api/webhooks/stripe` | `api-gateway` | Public webhook; verify Stripe signature over raw body; idempotently record events and update subscription |
+| `GET /api/account/export` | `api-gateway` / export | Export only caller-owned data and private object metadata |
+| `POST /api/account/delete` | `api-gateway` / delete | Confirm deletion, cancel eligible billing, remove private photos and auth user safely |
 
 The existing app currently has one Edge Function, `push-dispatch`; the other route implementations have not yet been ported. Do not remove the Next API routes until the replacement function and browser caller are tested.
 
 ## Function security model
 
-- User-facing functions: leave platform JWT verification enabled. Invoke them through the signed-in Supabase client so the user access token is sent as `Authorization: Bearer <JWT>`. Validate the user in the function and use a user-scoped client for ordinary CRUD.
-- Public endpoints: expose only genuinely public data/operations. Apply strict input validation, rate limits and abuse controls.
-- Stripe webhook: disable JWT verification only for this function, then verify `stripe-signature` using Stripe's Deno-compatible asynchronous Web Crypto provider over the exact raw request body. Never accept a webhook based only on JSON contents.
-- Scheduled push dispatch: disable browser JWT verification only if needed for the scheduler, then require a dedicated server-side cron credential or authenticated service-to-service mechanism. Never ship it to the browser.
-- Admin operations: keep the service-role key exclusively in Edge Function secrets. Use it only after verifying the caller/operation and only for the minimal privileged action.
-- CORS: allow the exact GitHub Pages production origin and localhost development origin; support OPTIONS preflight and required Supabase headers. Do not use wildcard origins with credentialed requests.
-- Preserve all existing RLS policies, ownership constraints, AI quotas, trial/subscription entitlements and trusted-points rules. Client-side hiding of buttons is not an access-control boundary.
+- `api-gateway` is configured with `verify_jwt = false` because it also receives the Stripe webhook. For every user operation, it reads the bearer token and explicitly calls Supabase Auth `getUser(token)` before creating user-scoped database operations. Missing/invalid tokens are rejected. This is the authentication boundary for the shared gateway.
+- User-owned CRUD uses the caller's anon/publishable client with the verified bearer token, so PostgreSQL RLS and ownership policies remain active.
+- Stripe webhook requests are handled before user auth and must pass a timestamped HMAC signature check over the exact raw body. The gateway records event IDs for idempotency.
+- `push-dispatch` is configured with `verify_jwt = false` and independently requires the exact server-side service-role bearer credential. Never expose that credential to the browser.
+- Admin operations use the service-role key only inside Edge Functions for points awards, account deletion and scheduled queue processing.
+- CORS allows the configured GitHub Pages origin and local development origins. Requests use explicit bearer tokens, not cookies or credentialed cross-origin sessions.
+- Preserve existing RLS policies, ownership constraints, AI quotas, subscription entitlements and trusted-points rules. Client-side hiding of controls is not authorization.
 
 ## Supabase function configuration and secrets
 
-Add one `[functions.<name>]` section per function to `supabase/config.toml`. Keep JWT verification on for authenticated user functions. Set `verify_jwt = false` only for Stripe webhook and scheduled/internal entry points that perform their own authentication.
+The migration branch configures `api-gateway` and `push-dispatch` with `verify_jwt = false`; each performs its own explicit request authentication as described above.
 
-Set production secrets in Supabase Dashboard → Edge Functions → Secrets (or with `supabase secrets set`). Expected server-side secrets, only when the corresponding feature is enabled:
+Set production secrets in Supabase Dashboard → Edge Functions → Secrets (or with `supabase secrets set`). The gateway uses:
+- Required for origin checks: `SITE_URL=https://rickytriesstuff.github.io`, `SITE_BASE_PATH=/luminaf`.
+- Meal scanner: `OPENAI_API_KEY`, optional `OPENAI_VISION_MODEL=gpt-4o-mini`.
+- Stripe: `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET`.
+- Push: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`.
 
-- `OPENAI_API_KEY`, `OPENAI_VISION_MODEL`, `OPENAI_TEXT_MODEL`
-- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`
-- `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`
-- `CRON_SECRET` (or another dedicated scheduler credential)
+Supabase injects `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` into Edge Functions. Never copy the service-role key into GitHub Pages variables, static assets or any `NEXT_PUBLIC_*` value.
 
-Supabase injects its project URL and server keys into Edge Functions. Do not duplicate secrets into client-side build variables. The frontend build needs only `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (or publishable key) and the public site base path.
+The frontend build requires only the public `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` (or publishable key) and `NEXT_PUBLIC_SITE_BASE_PATH`.
 
 ## GitHub Pages build and deployment
 
-After static-export compatibility is achieved:
+The branch includes `.github/workflows/deploy-pages.yml`, which builds the static `out/` directory and deploys it through GitHub Pages Actions when changes reach `main`.
 
-1. Configure repository Pages to publish with GitHub Actions.
-2. Add a workflow that runs Node 20, installs locked dependencies with `npm ci`, sets only public build-time variables, runs lint/typecheck/tests and `npm run build`, verifies `out/index.html`, writes `.nojekyll` if needed, uploads `out/` with `actions/upload-pages-artifact`, and deploys with `actions/deploy-pages`.
-3. Use repository variable `NEXT_PUBLIC_SITE_BASE_PATH=/luminaf` for the project site, or an empty value if a custom domain is configured at the origin root.
-4. Set Pages deployment permissions to read contents and write Pages/id-token as required by the official workflow.
-5. Do not commit `.env.local`, secret keys or a populated `.dev.vars`.
+1. In repository Settings → Pages, choose **GitHub Actions** as the publishing source.
+2. Add repository variables `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and `NEXT_PUBLIC_SITE_BASE_PATH=/luminaf`. Use an empty base path only if a root custom domain is configured.
+3. The workflow installs dependencies, runs `npm run build`, adds `.nojekyll`, uploads `out/` and deploys with the Pages actions.
+4. Do not commit `.env.local`, service-role keys or any private provider credentials.
 
+The branch also includes `.github/workflows/deploy-supabase.yml`. Add the GitHub secret `SUPABASE_ACCESS_TOKEN` to allow Edge Function deployment. SQL migration application is a manual opt-in and additionally requires `SUPABASE_DB_PASSWORD`.
+ 
 ## OAuth and route handling
 
 - Set Supabase Auth Site URL to the exact Pages URL.

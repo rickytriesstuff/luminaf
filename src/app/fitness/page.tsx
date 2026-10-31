@@ -1,5 +1,6 @@
 "use client";
 import {useEffect,useState} from "react";
+import {CategorySnapshot} from "@/components/category-snapshot";
 import {ArrowLeft,Clock,Loader2,Play,Save,Activity} from "lucide-react";
 import {CinematicScene} from "@/components/cinematic-scene";
 type Exercise={id:string;name:string;category:string;instructions:string;difficulty:string};

@@ -18,7 +18,7 @@ const bridgeCode = `(() => {
       if (raw) accessToken = JSON.parse(raw).access_token || "";
     } catch {}
     const target = new URL(supabaseUrl.replace(/\/$/, "") + "/functions/v1/api-gateway");
-    target.searchParams.set("path", requestUrl.pathname + requestUrl.search);
+    target.searchParams.set("path", requestUrl.pathname);\n    if (requestUrl.search) target.searchParams.set("query", requestUrl.search.slice(1));
     const headers = new Headers(original ? original.headers : undefined);
     if (init && init.headers) new Headers(init.headers).forEach((v,k)=>headers.set(k,v));
     headers.set("apikey", anonKey);

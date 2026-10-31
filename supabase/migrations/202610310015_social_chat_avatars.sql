@@ -1,0 +1,19 @@
+alter table public.profiles add column if not exists avatar_url text;
+create table if not exists public.friend_messages(id uuid primary key default gen_random_uuid(),sender_id uuid not null references auth.users(id) on delete cascade,recipient_id uuid not null references auth.users(id) on delete cascade,body text not null check(char_length(body) between 1 and 2000),created_at timestamptz not null default now(),read_at timestamptz,check(sender_id<>recipient_id));
+create index if not exists friend_messages_pair_time on public.friend_messages(sender_id,recipient_id,created_at desc);
+alter table public.friend_messages enable row level security;
+create policy "chat participants read messages" on public.friend_messages for select to authenticated using(sender_id=auth.uid() or recipient_id=auth.uid());
+create policy "send messages to accepted friends" on public.friend_messages for insert to authenticated with check(sender_id=auth.uid() and exists(select 1 from public.friendships f where f.status='accepted' and ((f.requester_id=auth.uid() and f.addressee_id=recipient_id) or (f.addressee_id=auth.uid() and f.requester_id=recipient_id))));
+insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('avatars','avatars',true,5242880,array['image/jpeg','image/png','image/webp']) on conflict(id) do update set public=true,file_size_limit=5242880,allowed_mime_types=array['image/jpeg','image/png','image/webp'];
+create policy "avatar images are public" on storage.objects for select using(bucket_id='avatars');
+create policy "users upload own avatar" on storage.objects for insert to authenticated with check(bucket_id='avatars' and (storage.foldername(name))[1]=auth.uid()::text);
+create policy "users update own avatar" on storage.objects for update to authenticated using(bucket_id='avatars' and (storage.foldername(name))[1]=auth.uid()::text) with check(bucket_id='avatars' and (storage.foldername(name))[1]=auth.uid()::text);
+create policy "users delete own avatar" on storage.objects for delete to authenticated using(bucket_id='avatars' and (storage.foldername(name))[1]=auth.uid()::text);
+
+do $$
+begin
+  if exists(select 1 from pg_publication where pubname='supabase_realtime')
+     and not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='friend_messages') then
+    alter publication supabase_realtime add table public.friend_messages;
+  end if;
+end $$;

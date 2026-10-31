@@ -22,7 +22,7 @@ See [.env.example](.env.example). Never expose Supabase service-role, AI, Stripe
 
 ## Deployment
 
-Luminaf is being migrated to **GitHub Pages + Supabase Edge Functions**. GitHub Pages serves only the static Next.js export; Supabase handles authentication, database, private storage and server-side operations. The current app still has server routes/actions and is not ready for static export yet. Do not enable `output: "export"` or replace the live Pages artifact until every operation has been ported and the acceptance checklist passes.
+Luminaf is being migrated to **GitHub Pages + Supabase Edge Functions**. GitHub Pages serves only the static Next.js export; Supabase handles authentication, database, private storage and server-side operations. The frontend is configured for static export. The browser redirects `/api/*` calls to the authenticated Supabase Edge Function gateway; all Next.js API route handlers, middleware and server actions have been removed from this migration branch. Production Pages deployment still requires repository variables and a passing static build.
 
 See [GitHub Pages + Supabase Edge Functions migration](docs/github-pages-supabase-migration.md) for the route-by-route plan, security model, OAuth/base-path setup and deployment gates.
 

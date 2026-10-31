@@ -1,5 +1,6 @@
 "use client";
 import {useCallback,useEffect,useState} from "react";
+import {CategorySnapshot} from "@/components/category-snapshot";
 import {ArrowLeft,Scale,Ruler,Target,Info,RefreshCw} from "lucide-react";
 import {CinematicScene} from "@/components/cinematic-scene";
 type Metric={id:string;weight_kg:number|null;height_cm:number|null;waist_cm:number|null;measured_at:string};

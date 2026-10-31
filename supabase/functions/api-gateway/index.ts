@@ -19,6 +19,22 @@ const fail = (message: string, status = 400) => json({ error: message }, status)
 const obj = (v: unknown): Record<string, any> => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, any> : {};
 const validNum = (v: unknown, min: number, max: number) => typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
 const validDate = (v: unknown) => typeof v === "string" && Number.isFinite(Date.parse(v));
+const validClock = (v: unknown) => typeof v === "string" && /^([01]\\d|2[0-3]):[0-5]\\d$/.test(v);
+const validMealItem = (x: any) => {
+  const n=obj(x?.nutrition);
+  return typeof x?.name==="string" && x.name.trim().length>=1 && x.name.length<=100 &&
+    validNum(x?.portion_grams,1,3000) && (x?.confidence===undefined || validNum(x.confidence,0,1)) &&
+    validNum(n.calories,0,5000) && validNum(n.protein_g,0,300) && validNum(n.carbs_g,0,500) &&
+    validNum(n.fat_g,0,300) && validNum(n.fiber_g,0,150) && validNum(n.sugar_g,0,250) && validNum(n.sodium_mg,0,15000);
+};
+const validMealType = (v: unknown) => v===undefined || ["breakfast","lunch","dinner","snack"].includes(String(v));
+const validPushEndpoint = (value: unknown) => {
+  if(typeof value!=="string")return false;
+  try { const u=new URL(value),h=u.hostname.toLowerCase(); return u.protocol==="https:" &&
+    (h==="fcm.googleapis.com" || h==="updates.push.services.mozilla.com" ||
+     h.endsWith(".push.services.mozilla.com") || h.endsWith(".push.apple.com") ||
+     h.endsWith(".notify.windows.com")); } catch { return false; }
+};
 const enc = (v: Uint8Array) => btoa(String.fromCharCode(...v));
 const dec = (v: string) => Uint8Array.from(atob(v), c => c.charCodeAt(0));
 
@@ -39,7 +55,7 @@ async function stripeRequest(path: string, secret: string, body: URLSearchParams
 }
 async function verifyStripe(body: string, header: string, secret: string) {
   const parts=header.split(",").map(x=>x.split("=")), ts=parts.find(x=>x[0]==="t")?.[1], signatures=parts.filter(x=>x[0]==="v1").map(x=>x[1]);
-  if(!ts||!signatures.length||Math.abs(Date.now()/1000-Number(ts))>300)return false;
+  if(!ts||!Number.isFinite(Number(ts))||!signatures.length||Math.abs(Date.now()/1000-Number(ts))>300)return false;
   const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
   const digest=new Uint8Array(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(ts+"."+body)));
   const expected=[...digest].map(x=>x.toString(16).padStart(2,"0")).join("");
@@ -147,7 +163,7 @@ Deno.serve(async (req) => {
     if(endpoint==="metrics"&&(method==="GET"||method==="POST")){
       if(method==="GET"){const {data,error}=await db.from("body_metrics").select("id,weight_kg,height_cm,waist_cm,measured_at").eq("user_id",uid).order("measured_at",{ascending:false}).limit(365);return json(error?{error:"Unable to load body metrics."}:{metrics:data||[]},error?500:200,headers);}
       if(!await canWrite())return json(needEntitlement(),402,headers);const b=obj(await body());
-      if(![b.weight_kg,b.height_cm,b.waist_cm].some(x=>x!==undefined)||b.weight_kg!==undefined&&!validNum(b.weight_kg,1,500)||b.height_cm!==undefined&&!validNum(b.height_cm,30,260)||b.waist_cm!==undefined&&!validNum(b.waist_cm,20,250))return failRequest("Metric values are invalid.",400);
+      if(![b.weight_kg,b.height_cm,b.waist_cm].some(x=>x!==undefined)||b.weight_kg!==undefined&&!validNum(b.weight_kg,1,500)||b.height_cm!==undefined&&!validNum(b.height_cm,30,260)||b.waist_cm!==undefined&&!validNum(b.waist_cm,20,250)||(b.measured_at!==undefined&&!validDate(b.measured_at)))return failRequest("Metric values are invalid.",400);
       const {data,error}=await db.from("body_metrics").insert({user_id:uid,...b}).select("id,weight_kg,height_cm,waist_cm,measured_at").single();return json(error?{error:"Unable to save measurement."}:{metric:data},error?500:201,headers);
     }
     if(endpoint==="sleep"&&method==="POST"){
@@ -157,7 +173,7 @@ Deno.serve(async (req) => {
     }
     if(endpoint==="workouts"&&method==="POST"){
       if(!await canWrite())return json(needEntitlement(),402,headers);const b=obj(await body());
-      if(typeof b.title!=="string"||!b.title.trim()||b.title.length>100||!Number.isInteger(b.duration_seconds)||b.duration_seconds<1||b.duration_seconds>86400||!Array.isArray(b.sets)||b.sets.length>100)return failRequest("Workout details are invalid.",400);
+      if(typeof b.title!=="string"||!b.title.trim()||b.title.length>100||typeof b.workout_type!=="string"||b.workout_type.length>40||!Number.isInteger(b.duration_seconds)||b.duration_seconds<1||b.duration_seconds>86400||(b.notes!==undefined&&(typeof b.notes!=="string"||b.notes.length>1000))||!Array.isArray(b.sets)||b.sets.length>100||!b.sets.every((x:any)=>typeof x.exercise_name==="string"&&x.exercise_name.trim().length>0&&x.exercise_name.length<=100&&Number.isInteger(x.set_number)&&x.set_number>=1&&x.set_number<=50&&(x.reps===undefined||Number.isInteger(x.reps)&&x.reps>=0&&x.reps<=1000)&&(x.duration_seconds===undefined||Number.isInteger(x.duration_seconds)&&x.duration_seconds>=0&&x.duration_seconds<=86400)&&(x.weight_kg===undefined||validNum(x.weight_kg,0,1000))))return failRequest("Workout details are invalid.",400);
       const {data:w,error}=await db.from("workouts").insert({user_id:uid,title:b.title,workout_type:b.workout_type,duration_seconds:b.duration_seconds,notes:b.notes}).select("id").single();if(error||!w)return failRequest("Unable to save workout.",500);
       if(b.sets.length){const {error:e}=await db.from("workout_sets").insert(b.sets.map((s:any)=>({...s,user_id:uid,workout_id:w.id})));if(e){await db.from("workouts").delete().eq("id",w.id).eq("user_id",uid);return failRequest("Unable to save workout sets.",500);}}
       if(admin)await award(admin,uid,10,"workout_completed",w.id,1);return json({id:w.id,saved:true},200,headers);
@@ -165,7 +181,7 @@ Deno.serve(async (req) => {
     if(endpoint==="reminders"&&(method==="GET"||method==="PUT")){
       if(method==="GET"){const {data,error}=await db.from("reminders").select("id,kind,local_time,timezone,enabled,quiet_hours").eq("user_id",uid).order("kind");return json(error?{error:"Unable to load reminders."}:{reminders:data||[]},error?500:200,headers);}
       if(!await canWrite())return json(needEntitlement(),402,headers);const b=await body();if(!Array.isArray(b)||b.length>30)return failRequest("Reminder settings are invalid.",400);
-      const rows=b.map((v:any)=>({...v,user_id:uid}));const {data,error}=await db.from("reminders").upsert(rows,{onConflict:"user_id,kind"}).select("id,kind,local_time,timezone,enabled,quiet_hours");return json(error?{error:"Unable to save reminder preferences."}:{reminders:data||[]},error?500:200,headers);
+      if(!b.every((v:any)=>v&&typeof v.kind==="string"&&v.kind.trim().length>0&&v.kind.length<=40&&(v.local_time===null||validClock(v.local_time))&&typeof v.timezone==="string"&&v.timezone.length>0&&v.timezone.length<=80&&typeof v.enabled==="boolean"&&(v.quiet_hours===undefined||v.quiet_hours&&typeof v.quiet_hours.enabled==="boolean"&&validClock(v.quiet_hours.start)&&validClock(v.quiet_hours.end))))return failRequest("Reminder settings are invalid.",400);const rows=b.map((v:any)=>({...v,user_id:uid}));const {data,error}=await db.from("reminders").upsert(rows,{onConflict:"user_id,kind"}).select("id,kind,local_time,timezone,enabled,quiet_hours");return json(error?{error:"Unable to save reminder preferences."}:{reminders:data||[]},error?500:200,headers);
     }
     if(endpoint==="profile"&&(method==="GET"||method==="PATCH")){
       if(method==="GET"){const {data,error}=await db.from("profiles").select("*").eq("id",uid).single();return json(error?{error:"Profile is not available yet."}:{profile:data},error?503:200,headers);}
@@ -199,7 +215,7 @@ Deno.serve(async (req) => {
       const form=await req.formData(),raw=form.get("meal");
       if(typeof raw!=="string")return failRequest("Meal details are missing.",400);
       let parsed:any;try{parsed=JSON.parse(raw);}catch{return failRequest("Meal details are invalid.",400);}
-      if(!Array.isArray(parsed.foods)||!parsed.foods.length||parsed.foods.length>15||!["breakfast","lunch","dinner","snack"].includes(parsed.meal_type))return failRequest("Meal details are invalid.",400);
+      if(!Array.isArray(parsed.foods)||!parsed.foods.length||parsed.foods.length>15||!["breakfast","lunch","dinner","snack"].includes(parsed.meal_type)||!Number.isInteger(parsed.meal_score)||parsed.meal_score<0||parsed.meal_score>100||!parsed.foods.every(validMealItem))return failRequest("Meal details are invalid.",400);
       const image=form.get("image");let photo_path:string|null=null;
       if(image instanceof File){
         if(!["image/jpeg","image/png","image/webp"].includes(image.type)||image.size>8*1024*1024)return failRequest("Photo must be JPG, PNG or WebP and smaller than 8 MB.",400);
@@ -215,7 +231,7 @@ Deno.serve(async (req) => {
     }
     if(endpoint==="meals"&&(method==="GET"||method==="POST")){
       if(method==="GET"){let q=db.from("meals").select("id,meal_type,photo_path,calories,protein_g,carbs_g,fat_g,fiber_g,meal_score,ai_estimate,logged_at,meal_items(id,name,portion_grams,confidence,nutrition)").eq("user_id",uid).order("logged_at",{ascending:false}).limit(100);q=readRange(q);const {data,error}=await q;if(error)return failRequest("Unable to load meals.",500);const meals=await Promise.all((data||[]).map(async m=>{if(!m.photo_path)return {...m,photo_url:null};const {data:s}=await db.storage.from("meal-photos").createSignedUrl(m.photo_path,300);return {...m,photo_url:s?.signedUrl||null};}));return json({meals},200,headers);}
-      if(!await canWrite())return json(needEntitlement(),402,headers);const b=obj(await body());if(!Array.isArray(b.items)||b.items.length<1||b.items.length>15)return failRequest("Meal details are invalid.",400);
+      if(!await canWrite())return json(needEntitlement(),402,headers);const b=obj(await body());if(!validMealType(b.meal_type)||(b.logged_at!==undefined&&!validDate(b.logged_at))||(b.meal_score!==undefined&&(!Number.isInteger(b.meal_score)||b.meal_score<0||b.meal_score>100))||(b.photo_base64!==undefined&&(typeof b.photo_base64!=="string"||b.photo_base64.length>11500000))||!Array.isArray(b.items)||b.items.length<1||b.items.length>15||!b.items.every(validMealItem))return failRequest("Meal details are invalid.",400);
       const totals=b.items.reduce((a:any,x:any)=>({calories:a.calories+Number(x.nutrition?.calories||0),protein_g:a.protein_g+Number(x.nutrition?.protein_g||0),carbs_g:a.carbs_g+Number(x.nutrition?.carbs_g||0),fat_g:a.fat_g+Number(x.nutrition?.fat_g||0),fiber_g:a.fiber_g+Number(x.nutrition?.fiber_g||0)}),{calories:0,protein_g:0,carbs_g:0,fat_g:0,fiber_g:0});
       let photo_path:string|null=null;
       if(b.photo_base64){const m=String(b.photo_base64).match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);if(!m)return failRequest("Meal photo encoding is invalid.",400);const bytes=dec(m[2]);if(bytes.length>8*1024*1024)return failRequest("Meal photo must be smaller than 8 MB.",413);const ext=m[1]==="image/jpeg"?"jpg":m[1].split("/")[1];photo_path=uid+"/"+crypto.randomUUID()+"."+ext;const {error}=await db.storage.from("meal-photos").upload(photo_path,bytes,{contentType:m[1],upsert:false});if(error)return failRequest("Unable to securely store meal photo.",500);}
@@ -233,7 +249,7 @@ Deno.serve(async (req) => {
       const dataUrl="data:"+image.type+";base64,"+enc(new Uint8Array(await image.arrayBuffer()));
       const schema={type:"object",additionalProperties:false,properties:{foods:{type:"array",items:{type:"object",additionalProperties:false,properties:{name:{type:"string"},category:{type:"string"},portion_grams:{type:"number"},confidence:{type:"number"},nutrition:{type:"object",additionalProperties:false,properties:{calories:{type:"number"},protein_g:{type:"number"},carbs_g:{type:"number"},fat_g:{type:"number"},fiber_g:{type:"number"},sugar_g:{type:"number"},sodium_mg:{type:"number"}},required:["calories","protein_g","carbs_g","fat_g","fiber_g","sugar_g","sodium_mg"]}},required:["name","category","portion_grams","confidence","nutrition"]}},benefits:{type:"array",items:{type:"string"}},risks:{type:"array",items:{type:"string"}},meal_score:{type:"integer"},score_reason:{type:"string"}},required:["foods","benefits","risks","meal_score","score_reason"]};
       const r=await fetch("https://api.openai.com/v1/chat/completions",{method:"POST",headers:{Authorization:"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify({model:Deno.env.get("OPENAI_VISION_MODEL")||"gpt-4o-mini",temperature:0.2,response_format:{type:"json_schema",json_schema:{name:"meal_analysis",strict:true,schema}},messages:[{role:"system",content:"Estimate nutrition from meal photos. Values are estimates, not medical advice. Never claim certainty. If not clearly food, return empty foods."},{role:"user",content:[{type:"text",text:"Identify foods and estimate edible portions and nutrition."},{type:"image_url",image_url:{url:dataUrl,detail:"high"}}]}]})});
-      if(!r.ok)return failRequest("The meal scanner is temporarily unavailable.",502);const result=obj((await r.json()).choices?.[0]?.message);let analysis:any;try{analysis=JSON.parse(result.content);}catch{return failRequest("The scanner returned no usable analysis.",502);}if(!Array.isArray(analysis.foods)||!analysis.foods.length)return failRequest("We couldn't confidently identify a meal. Try a clearer photo.",422);
+      if(!r.ok)return failRequest("The meal scanner is temporarily unavailable.",502);const result=obj((await r.json()).choices?.[0]?.message);let analysis:any;try{analysis=JSON.parse(result.content);}catch{return failRequest("The scanner returned no usable analysis.",502);}if(!Array.isArray(analysis.foods)||!analysis.foods.length||analysis.foods.length>15||!analysis.foods.every(validMealItem)||!Array.isArray(analysis.benefits)||analysis.benefits.length>8||!Array.isArray(analysis.risks)||analysis.risks.length>8||!Number.isInteger(analysis.meal_score)||analysis.meal_score<0||analysis.meal_score>100||typeof analysis.score_reason!=="string")return failRequest("We couldn't confidently validate the meal estimate. Try a clearer photo.",422);
       return json({analysis,disclaimer:"AI-generated nutrition estimates can be inaccurate and are not medical advice."},200,headers);
     }
     if(endpoint==="friends"&&method==="GET"){const {data,error}=await db.rpc("get_friends_zone");return json(error?{error:"Unable to load friends."}:{friends:data||[]},error?503:200,headers);}
@@ -247,7 +263,7 @@ Deno.serve(async (req) => {
       if(error)return failRequest("Unable to accept invitation.",400);if(data!==true)return failRequest("This invitation has expired or was already used.",410);return json({accepted:true},200,headers);
     }
     if(endpoint==="push/subscriptions"&&(method==="POST"||method==="DELETE")){
-      const b=obj(await body());if(typeof b.endpoint!=="string"||!b.endpoint.startsWith("https://"))return failRequest("Push endpoint is invalid.",400);
+      const b=obj(await body());if(!validPushEndpoint(b.endpoint))return failRequest("Push endpoint must use a supported browser push service over HTTPS.",400);
       if(method==="POST"){if(!obj(b.keys).p256dh||!obj(b.keys).auth)return failRequest("Push subscription details are invalid.",400);const {error}=await db.from("push_subscriptions").upsert({user_id:uid,endpoint:b.endpoint,subscription:b},{onConflict:"endpoint"});return json(error?{error:"Unable to save this device subscription."}:{saved:true},error?409:201,headers);}
       const {error}=await db.from("push_subscriptions").delete().eq("user_id",uid).eq("endpoint",b.endpoint);return json(error?{error:"Unable to remove this device."}:{removed:true},error?500:200,headers);
     }

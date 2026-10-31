@@ -14,22 +14,38 @@ const bridgeCode = `(() => {
     if (!requestUrl.pathname.startsWith("/api/")) return nativeFetch(input, init);
     if (!supabaseUrl || !anonKey) return new Response(JSON.stringify({error:"Luminaf backend is not configured."}), {status:503,headers:{"Content-Type":"application/json"}});
     const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
-    let accessToken = "";
-    try {
-      const raw = localStorage.getItem("sb-" + projectRef + "-auth-token");
-      if (raw) accessToken = JSON.parse(raw).access_token || "";
-    } catch {}
+    const storageKey = "sb-" + projectRef + "-auth-token";
+    let session = null;
+    try { const raw = localStorage.getItem(storageKey); if (raw) session = JSON.parse(raw); } catch {}
+    const refreshSession = async () => {
+      if (!session || !session.refresh_token) return "";
+      try {
+        const response = await nativeFetch(supabaseUrl.replace(/\/$/, "") + "/auth/v1/token?grant_type=refresh_token", {
+          method:"POST", headers:{"apikey":anonKey,"Content-Type":"application/json"},
+          body:JSON.stringify({refresh_token:session.refresh_token}), credentials:"omit"
+        });
+        if (!response.ok) return "";
+        const fresh = await response.json();
+        session = {...session,...fresh};
+        localStorage.setItem(storageKey,JSON.stringify(session));
+        return session.access_token || "";
+      } catch { return ""; }
+    };
+    let accessToken = session && session.access_token || "";
+    const expiresAt = session && (session.expires_at || (session.expires_in ? Math.floor(Date.now()/1000)+session.expires_in : 0));
+    if (session && session.refresh_token && (!accessToken || !expiresAt || expiresAt < Math.floor(Date.now()/1000)+60)) accessToken = await refreshSession() || accessToken;
     const target = new URL(supabaseUrl.replace(/\/$/, "") + "/functions/v1/api-gateway");
     target.searchParams.set("path", requestUrl.pathname);
     if (requestUrl.search) target.searchParams.set("query", requestUrl.search.slice(1));
     const headers = new Headers(original ? original.headers : undefined);
     if (init && init.headers) new Headers(init.headers).forEach((v,k)=>headers.set(k,v));
     headers.set("apikey", anonKey);
-    if (accessToken) headers.set("Authorization", "Bearer " + accessToken);
-    else headers.delete("Authorization");
     const method = (init && init.method) || (original && original.method) || "GET";
     const body = init && "body" in init ? init.body : (original && method !== "GET" && method !== "HEAD" ? await original.clone().arrayBuffer() : undefined);
-    return nativeFetch(target.toString(), {method,headers,body,cache:"no-store",credentials:"omit",signal:init && init.signal ? init.signal : original ? original.signal : undefined});
+    const send = (token) => { const requestHeaders = new Headers(headers); if (token) requestHeaders.set("Authorization","Bearer "+token); else requestHeaders.delete("Authorization"); return nativeFetch(target.toString(), {method,headers:requestHeaders,body,cache:"no-store",credentials:"omit",signal:init && init.signal ? init.signal : original ? original.signal : undefined}); };
+    let response = await send(accessToken);
+    if (response.status === 401 && session && session.refresh_token) { const renewed = await refreshSession(); if (renewed) response = await send(renewed); }
+    return response;
   };
 })();`;
 

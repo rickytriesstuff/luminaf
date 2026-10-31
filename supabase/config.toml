@@ -18,8 +18,8 @@ port = 54323
 
 [auth]
 enabled = true
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+site_url = "https://rickytriesstuff.github.io/luminaf/"
+additional_redirect_urls = ["https://rickytriesstuff.github.io/luminaf/**", "http://localhost:3000/**"]
 enable_signup = true
 
 [functions.api-gateway]

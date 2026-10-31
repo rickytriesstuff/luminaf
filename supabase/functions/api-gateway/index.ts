@@ -59,7 +59,8 @@ Deno.serve(async (req) => {
   const user=userResult.data.user;
   const requireUser=()=>user?null:fail("Sign in required.",401);
   const body=async()=>{try{return await req.json()}catch{return null}};
-  const respond=async (p:Promise<Response>)=>{const r=await p;const h=new Headers(r.headers);for(const [k,v] of Object.entries(headers))h.set(k,v);return new Response(r.body,{status:r.status,headers:h});};\n  const failRequest=(message:string,status=400)=>json({error:message},status,headers);
+  const respond=async (p:Promise<Response>)=>{const r=await p;const h=new Headers(r.headers);for(const [k,v] of Object.entries(headers))h.set(k,v);return new Response(r.body,{status:r.status,headers:h});};
+  const failRequest=(message:string,status=400)=>json({error:message},status,headers);
   try {
     // Stripe sends its own signature, not a Supabase user JWT.
     if(endpoint==="webhooks/stripe"&&method==="POST"){
@@ -90,6 +91,7 @@ Deno.serve(async (req) => {
 
     if(endpoint==="health/symptoms")return json({error:"Symptom screening is disabled in this release. For severe, sudden or worsening symptoms, seek urgent medical care."},503,headers);
     if(endpoint==="weather"&&method==="GET"){
+      if(!user)return failRequest("Sign in to check local weather.",401);
       const lat=Number(routeParams.get("lat")),lon=Number(routeParams.get("lon"));
       if(!Number.isFinite(lat)||!Number.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)return failRequest("A valid location is required.",400);
       const params=new URLSearchParams({latitude:String(lat),longitude:String(lon),current:"temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m",timezone:"auto"});

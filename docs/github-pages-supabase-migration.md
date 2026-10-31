@@ -141,3 +141,34 @@ After static-export compatibility is achieved:
 - [Edge Function authorization headers](https://supabase.com/docs/guides/functions/auth-headers)
 - [Edge Function CORS](https://supabase.com/docs/guides/functions/cors)
 - [Edge Function secrets](https://supabase.com/docs/guides/functions/secrets)
+
+## Implementation status on this branch
+
+The frontend conversion is now committed on `feat/github-pages-supabase-edge-migration`:
+- Next.js static export is enabled with trailing-slash routes, unoptimized images and configurable `NEXT_PUBLIC_SITE_BASE_PATH`.
+- Browser authentication now uses Supabase JS for email/password, Google, Apple, password reset, PKCE callback and profile onboarding. The legacy server actions and middleware have been removed.
+- The Next.js API route handlers have been removed from this branch. Existing `fetch("/api/...")` callers are kept working through a before-interactive browser bridge that forwards requests to `api-gateway` with the current Supabase access token.
+- The Edge gateway covers wellness CRUD, meals and AI analysis, friends/invitations, profile, progress, reminders, notifications, points, weather, push subscription registration, billing checkout/portal/status, Stripe webhook, account export/deletion and fail-closed symptom requests. Legacy multipart meal-save is supported too.
+- `push-dispatch` remains the scheduled notification worker and now builds Pages-scoped notification destinations.
+- GitHub Actions workflows have been added for static Pages deployment and Supabase function deployment. SQL migration application is an explicit manual opt-in in the Supabase workflow.
+
+**Not yet verified:** a clean Next.js static build, Deno type-check for both Edge Functions, live Edge Function deployment, Supabase SQL migration state, GitHub Pages cutover, OAuth redirect configuration, VAPID/Stripe/OpenAI secrets, and end-to-end production tests. Do not merge/cut over until PR checks pass and the acceptance checklist below is completed.
+
+### Required GitHub repository variables
+- `NEXT_PUBLIC_SUPABASE_URL` = the Supabase project URL.
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` = the Supabase publishable/anon key (public key only).
+- `NEXT_PUBLIC_SITE_BASE_PATH` = `/luminaf` for the default project Pages URL, or empty for a root custom domain.
+
+### Required GitHub repository secrets
+- `SUPABASE_ACCESS_TOKEN` for the Edge Function deployment workflow.
+- `SUPABASE_DB_PASSWORD` only if manually opting into database migration application.
+
+### Supabase Edge Function secrets
+Set these in the Supabase project dashboard, not in GitHub Pages build variables:
+- Required: `SITE_URL=https://rickytriesstuff.github.io`, `SITE_BASE_PATH=/luminaf`.
+- Required for privileged awards/deletion and queue worker: Supabase service role key is injected by Supabase as `SUPABASE_SERVICE_ROLE_KEY`.
+- Meal scanner: `OPENAI_API_KEY`, optional `OPENAI_VISION_MODEL=gpt-4o-mini`.
+- Stripe: `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_WEBHOOK_SECRET`.
+- Push: `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`.
+
+The service-role, OpenAI, Stripe, VAPID private and cron credentials must never be put in Pages variables, client JavaScript or `NEXT_PUBLIC_*` values.

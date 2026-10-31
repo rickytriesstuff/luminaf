@@ -6,7 +6,7 @@ import {ArrowUpRight,LogIn} from "lucide-react";
 import {createClient} from "@/lib/supabase/client";
 const scenes=[
  {name:"MOVE WITH FREEDOM",caption:"A run, a fresh start.",image:"https://images.unsplash.com/photo-1538805060514-97d9cc17730c?auto=format&fit=crop&w=2200&q=85"},
- {name:"BUILD YOUR STRENGTH",caption:"Show up. Find your power.",image:"https://images.unsplash.com/photo-1534438327276-14e5300c3a48?auto=format&fit=crop&w=2200&q=85"},
+ {name:"BUILD YOUR STRENGTH",caption:"Show up. Find your power.",image:"https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?auto=format&fit=crop&w=2200&q=90"},
  {name:"PAUSE & HYDRATE",caption:"Make room for a little reset.",image:"https://images.unsplash.com/photo-1548839140-29a749e1cf4d?auto=format&fit=crop&w=2200&q=85"},
  {name:"NOURISH YOURSELF",caption:"Good food, good energy.",image:"https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=2200&q=85"},
  {name:"REST IS PROGRESS",caption:"Let your body recharge.",image:"https://images.unsplash.com/photo-1511295742362-4c2e8f7b6b8a?auto=format&fit=crop&w=2200&q=85"},
@@ -15,7 +15,7 @@ const scenes=[
 ];
 export function AppAtmosphere(){
  const pathname=usePathname(),[active,setActive]=useState(0),[signedIn,setSignedIn]=useState(false);
- useEffect(()=>{const timer=window.setInterval(()=>setActive(v=>(v+1)%scenes.length),6500);return()=>window.clearInterval(timer);},[]);
+ useEffect(()=>{const timer=window.setInterval(()=>setActive(v=>(v+1)%scenes.length),5200);return()=>window.clearInterval(timer);},[]);
  useEffect(()=>{let alive=true;try{const client=createClient();client.auth.getSession().then(({data})=>{if(alive)setSignedIn(!!data.session);});const {data}=client.auth.onAuthStateChange((_event,session)=>{if(alive)setSignedIn(!!session);});return()=>{alive=false;data.subscription.unsubscribe();};}catch{return()=>{alive=false;};}},[]);
  const scene=scenes[active],isAuth=pathname?.startsWith("/auth");
  return <>

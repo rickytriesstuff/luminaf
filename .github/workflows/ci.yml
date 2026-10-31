@@ -19,8 +19,13 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://cgigviwpnvlidguhspnf.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+          NEXT_PUBLIC_SITE_BASE_PATH: /luminaf
       - uses: denoland/setup-deno@v2
       - run: deno install
       - run: deno check supabase/functions/push-dispatch/index.ts
+      - run: deno check supabase/functions/api-gateway/index.ts
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e

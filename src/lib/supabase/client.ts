@@ -25,7 +25,10 @@ export function createClient(): SupabaseClient {
       storage: window.localStorage,
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: true,
+      // The static callback page explicitly exchanges the OAuth code. Disable the
+      // SDK's automatic URL detection so it cannot race that exchange and
+      // consume the one-time PKCE verifier before the callback handler does.
+      detectSessionInUrl: false,
       flowType: "pkce",
     },
   });

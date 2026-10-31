@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
 
     const authError=requireUser();if(authError)return await respond(Promise.resolve(authError));
     const uid=user!.id;
-    const canWrite=async()=>await entitlement(db,uid);
+    // Payments are intentionally deferred. Keep core wellness logging available to every signed-in user until billing is introduced.\n    const canWrite=async()=>true;
     const readRange=(q:any)=>{const from=routeParams.get("from"),to=routeParams.get("to");if(from)q=q.gte("logged_at",from);if(to)q=q.lte("logged_at",to);return q;};
 
     if(endpoint==="water"&&method==="GET"){

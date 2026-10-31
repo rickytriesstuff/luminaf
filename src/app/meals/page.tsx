@@ -1,6 +1,7 @@
 "use client";
 import {useState} from "react";
 import {ArrowLeft,BookOpen,CheckCircle2,Save,Utensils} from "lucide-react";
+import {CinematicScene} from "@/components/cinematic-scene";
 
 const initial={name:"",portion:"100",calories:"",protein:"",carbs:"",fat:"",fiber:"",sugar:"",sodium:""};
 export default function MealsPage(){
@@ -32,7 +33,7 @@ export default function MealsPage(){
  ];
  return <main className="mx-auto min-h-screen max-w-3xl px-5 py-8 pb-16">
   <a href="/" className="flex items-center gap-2 text-sm text-[#8CFFC9]"><ArrowLeft size={16}/> Dashboard</a>
-  <p className="mt-10 text-xs tracking-[.2em] text-[#8CFFC9]">NUTRITION JOURNAL</p>
+  <div className="mt-7"><CinematicScene scene="food" eyebrow="YOUR FOOD JOURNAL" title="Make every bite count." description="Capture what you eat, explore colorful ingredients and build a kinder relationship with your food." metric={form.name.trim()?1:0} metricLabel="MEAL IN PROGRESS" detail={form.name.trim()||"Ready for your first ingredient"}/></div><p className="mt-8 text-xs tracking-[.2em] text-[#8CFFC9]">NUTRITION JOURNAL</p>
   <h1 className="mt-2 text-3xl font-semibold">Log a meal</h1>
   <p className="mt-2 text-sm leading-relaxed text-[#91A49A]">Add food and its nutrition information manually. Your saved entries feed the Nutrition Overview and Progress charts. AI photo scanning will be added in a later release.</p>
   <section className="panel mt-7 rounded-3xl p-5 sm:p-6">

@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Apple, Flame, Leaf, Plus, Utensils, RefreshCw } from "lucide-react";
+import {CinematicScene} from "@/components/cinematic-scene";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 type Meal={id:string;meal_type:string;calories:number|null;protein_g:number|null;carbs_g:number|null;fat_g:number|null;fiber_g:number|null;logged_at:string;meal_items?:{id:string;name:string}[]};
@@ -22,7 +23,7 @@ export default function NutritionPage(){
  const mealNames:Record<string,string>={breakfast:"Breakfast",lunch:"Lunch",dinner:"Dinner",snack:"Snack"};
  return <main className="mx-auto min-h-screen max-w-4xl px-5 py-8 pb-16">
  <a href="/" className="flex items-center gap-2 text-sm text-[#8CFFC9]"><ArrowLeft size={16}/> Dashboard</a>
- <p className="mt-10 text-xs tracking-[.2em] text-[#8CFFC9]">FOOD & FUEL</p>
+ <div className="mt-7"><CinematicScene scene="food" eyebrow="FOOD · COLOR · ENERGY" title="A little more color on your plate." description="Explore your meals, celebrate variety and discover the fuel behind your day." metric={meals.length} metricLabel="MEALS IN YOUR JOURNAL" detail="Saved meal entries"/></div>
  <div className="mt-2 flex items-end justify-between gap-3"><div><h1 className="text-3xl font-semibold">Nutrition overview</h1><p className="mt-2 text-sm text-[#91A49A]">Understand your meals with curiosity, not judgement.</p></div><a href="/meals" className="flex shrink-0 items-center gap-2 rounded-xl bg-[#00E58A] px-4 py-3 text-xs font-bold text-[#03120B]"><Plus size={15}/> Log meal</a></div>
  {error&&<div role="alert" className="mt-5 flex items-center justify-between gap-3 rounded-xl border border-red-900/70 bg-red-950/30 p-3 text-sm text-red-200"><span>{error}</span><button onClick={()=>void load()} className="shrink-0 text-xs underline">Retry</button></div>}
  <section className="panel mt-7 rounded-3xl p-5"><div className="flex items-center justify-between"><div><div className="flex items-center gap-2"><Flame className="text-[#8CFFC9]"/><h2 className="font-semibold">Today&apos;s nutrition</h2></div><p className="mt-1 text-xs text-[#71847A]">Totals from meals you have saved today</p></div><button onClick={()=>void load()} aria-label="Refresh nutrition" className="rounded-lg border border-[#26372E] p-2 text-[#8CFFC9]"><RefreshCw size={15}/></button></div>

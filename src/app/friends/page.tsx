@@ -1,6 +1,6 @@
 "use client";
 import {useEffect,useMemo,useState} from "react";
-import {ArrowLeft,Copy,Link2,Loader2,RefreshCw,Users,Send,MessageCircle,Flame} from "lucide-react";
+import {ArrowLeft,Copy,Loader2,RefreshCw,Users,Send,MessageCircle,Flame} from "lucide-react";
 import {createClient} from "@/lib/supabase/client";
 type Friend={friend_id:string;display_name:string;points_total:number;avatar_url?:string};
 type Msg={id:string;sender_id:string;recipient_id:string;body:string;created_at:string};

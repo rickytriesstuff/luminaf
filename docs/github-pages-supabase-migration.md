@@ -6,7 +6,7 @@ GitHub Pages remains the frontend host. Supabase remains the backend. Cloudflare
 
 The migration implementation is committed on `feat/github-pages-supabase-edge-migration`. This branch enables Next.js static export, replaces server-side authentication flows, removes the Next.js API handlers and routes the existing browser `/api/*` calls through a Supabase Edge Function gateway. The previous production branch is not changed by this work.
 
-**Production is not yet cut over.** The static build, Deno checks, deployed Edge Functions, migration state and live sign-in/data flows still need to pass verification. Do not merge or publish the branch until GitHub Actions succeeds and the deployment checklist is complete.
+**Production is not yet cut over.** The latest GitHub Actions CI run passed lint, TypeScript, unit tests, the Next.js static export build, Deno checks for both Edge Functions and Playwright smoke tests. Live Edge Function deployment, production migration state, Auth redirect configuration and real-account end-to-end checks remain outstanding. Keep the PR unmerged until the required GitHub Pages variables are present and the production cutover checklist is completed.
 
 The implementation uses one authenticated `api-gateway` Edge Function with operation paths, rather than maintaining a separate Edge Function deployment for every API route. The separate `push-dispatch` function remains the scheduled notification worker.
 
@@ -31,7 +31,7 @@ Browser code may contain only the Supabase project URL and publishable/anon key.
 - The bridge also prefixes root-relative anchors for the Pages project subpath. The PWA manifest, service worker registration, cache scope and notification click URLs are base-path aware.
 - Account export now downloads through the API bridge. Account deletion and sign-out use the browser/Supabase gateway flows.
 
-The static build and runtime behavior remain unverified until the latest GitHub Actions run finishes. Review any build or test failures before merging.
+The latest CI run completed successfully: lint, typecheck, unit tests, static export build, both Deno Edge Function checks and Playwright smoke tests all passed. This validates the build pipeline, not the live Supabase project or deployed Pages runtime.
  
 ## Edge Function migration inventory
 
@@ -69,7 +69,7 @@ Keep the existing public app routes/feature contracts, but move their implementa
 | `GET /api/account/export` | `api-gateway` / export | Export only caller-owned data and private object metadata |
 | `POST /api/account/delete` | `api-gateway` / delete | Confirm deletion, cancel eligible billing, remove private photos and auth user safely |
 
-The existing app currently has one Edge Function, `push-dispatch`; the other route implementations have not yet been ported. Do not remove the Next API routes until the replacement function and browser caller are tested.
+The migration branch removes the Next.js API route handlers and routes their existing browser callers through the `api-gateway` Edge Function. The CI checks validate the gateway's Deno types and the static frontend, but each operation still needs live verification against the connected Supabase project before production cutover.
 
 ## Function security model
 
@@ -157,7 +157,7 @@ The frontend conversion is now committed on `feat/github-pages-supabase-edge-mig
 - `push-dispatch` remains the scheduled notification worker and now builds Pages-scoped notification destinations.
 - GitHub Actions workflows have been added for static Pages deployment and Supabase function deployment. SQL migration application is an explicit manual opt-in in the Supabase workflow.
 
-**Not yet verified:** a clean Next.js static build, Deno type-check for both Edge Functions, live Edge Function deployment, Supabase SQL migration state, GitHub Pages cutover, OAuth redirect configuration, VAPID/Stripe/OpenAI secrets, and end-to-end production tests. Do not merge/cut over until PR checks pass and the acceptance checklist below is completed.
+**Verified in CI:** Next.js static build, lint, TypeScript, unit tests, Deno type-check for both Edge Functions and Playwright smoke tests. **Not yet verified in production:** live Edge Function deployment, Supabase SQL migration state, GitHub Pages cutover, OAuth redirect configuration, optional VAPID/Stripe/OpenAI secrets and end-to-end real-account tests. Keep the PR unmerged until the required Pages variables and Auth URL configuration are confirmed, then complete the production acceptance checklist below.
 
 ### Required GitHub repository variables
 - `NEXT_PUBLIC_SUPABASE_URL` = the Supabase project URL.

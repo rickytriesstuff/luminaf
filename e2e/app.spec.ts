@@ -65,7 +65,7 @@ test("progress dashboard renders activity, nutrition and recovery sections",asyn
 test("profile and body pages expose saved account data controls",async({page})=>{
  await page.goto("profile/");
  await expect(page.getByRole("heading",{name:"Profile"})).toBeVisible();
- await expect(page.getByRole("heading",{name:"Your data"})).toBeVisible();
+ await expect(page.getByRole("link",{name:/Privacy & data/i})).toBeVisible();
  await page.goto("body/");
  await expect(page.getByRole("heading",{name:"Your measurements"})).toBeVisible();
  await expect(page.getByRole("heading",{name:"Measurement history"})).toBeVisible();

@@ -1,0 +1,7 @@
+"use client";
+import Link from "next/link";
+import {usePathname} from "next/navigation";
+import {Home,Apple,Dumbbell,Users,UserRound,HeartPulse} from "lucide-react";
+import {sitePath} from "@/lib/site-path";
+const tabs=[{label:"Home",href:"/",icon:Home},{label:"Meals",href:"/meals/",icon:Apple},{label:"Fitness",href:"/fitness/",icon:Dumbbell},{label:"Friends",href:"/friends/",icon:Users},{label:"Health",href:"/health/",icon:HeartPulse},{label:"Profile",href:"/profile/",icon:UserRound}];
+export default function AppNavigation(){const pathname=usePathname()||"/";if(pathname.includes("/auth")||pathname.includes("/onboarding")||pathname.includes("/friends/accept"))return null;return <nav aria-label="Main navigation" className="fixed inset-x-3 bottom-[max(10px,env(safe-area-inset-bottom))] z-[100] mx-auto flex max-w-2xl items-center justify-around rounded-2xl border border-[#26372E] bg-[#080D0A]/95 p-2 shadow-2xl backdrop-blur-xl">{tabs.map(({label,href,icon:Icon})=>{const active=href==="/"?pathname==="/"||(pathname.endsWith("/")&&pathname.split("/").filter(Boolean).length===1)||pathname.endsWith("/index.html"):pathname.endsWith(href.replace(/\/$/,""))||pathname.endsWith(href);return <Link key={label} href={sitePath(href)} aria-current={active?"page":undefined} className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-xl px-1.5 py-2 text-[9px] transition-colors ${active?"bg-[#10251B] text-[#8CFFC9]":"text-[#71847A] hover:text-white"}`}><Icon size={19}/><span>{label}</span></Link>;})}</nav>}

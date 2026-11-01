@@ -1,5 +1,5 @@
 "use client";
-import {Activity,Apple,ArrowUpRight,Bell,CalendarDays,ChevronRight,Droplets,Flame,Footprints,HeartPulse,Moon,Plus,ShieldCheck,Sparkles,Users,Waves,Zap,Dumbbell,Target,ChartNoAxesCombined,Leaf,TrendingUp,Clock,Lightbulb} from "lucide-react";
+import {Apple,ArrowUpRight,Bell,CalendarDays,ChevronRight,Droplets,Flame,Footprints,HeartPulse,Moon,Plus,ShieldCheck,Sparkles,Users,Waves,Zap,Dumbbell,Target,ChartNoAxesCombined,Leaf,Lightbulb} from "lucide-react";
 import {useEffect,useMemo,useState} from "react";
 import {Area,AreaChart,Bar,BarChart,CartesianGrid,ResponsiveContainer,Tooltip,XAxis,YAxis} from "recharts";
 import TrialBanner from "@/components/trial-banner";

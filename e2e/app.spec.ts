@@ -86,3 +86,19 @@ test("friends zone exposes social feed, discovery and chats",async({page})=>{
  await expect(page.getByRole("button",{name:/Chats/i})).toBeVisible();
  await expect(page.getByRole("navigation",{name:"Main navigation"})).toBeVisible();
 });
+
+test("all persistent bottom tabs navigate to real pages under the GitHub Pages base path",async({page})=>{
+ await page.goto("./");
+ const tabs=[
+  {name:"Meals",path:/\\/luminaf\\/meals\\/$/,heading:"Meal scanner"},
+  {name:"Fitness",path:/\\/luminaf\\/fitness\\/$/,heading:"Fitness studio"},
+  {name:"Friends",path:/\\/luminaf\\/friends\\/$/,heading:"Friends"},
+  {name:"Health",path:/\\/luminaf\\/health\\/$/,heading:"Health check-in"},
+  {name:"Profile",path:/\\/luminaf\\/profile\\/$/,heading:"Profile"}
+ ];
+ for(const tab of tabs){
+  await page.getByRole("navigation",{name:"Main navigation"}).getByRole("link",{name:tab.name,exact:true}).click();
+  await expect(page).toHaveURL(tab.path);
+  await expect(page.getByRole("heading",{name:tab.heading,exact:true})).toBeVisible();
+ }
+});

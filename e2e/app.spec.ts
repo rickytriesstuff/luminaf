@@ -15,7 +15,8 @@ test("health check-in keeps its medical disclaimer visible",async({page})=>{
 test("meal scanner labels image nutrition as an estimate",async({page})=>{
  await page.goto("/meals");
  await expect(page.getByRole("heading",{name:"Meal scanner"})).toBeVisible();
- await expect(page.getByText(/estimate its nutrition/i)).toBeVisible();
+ await expect(page.getByText(/photograph a meal and let ai estimate the foods, portions and nutrition/i)).toBeVisible();
+ await expect(page.getByText(/of 5 left today/i)).toBeVisible();
 });
 test("PWA manifest is served",async({request})=>{
  const response=await request.get("/manifest.webmanifest");

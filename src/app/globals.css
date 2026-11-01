@@ -28,7 +28,7 @@
 
 /* Global cinematic atmosphere: persistent, changing wellness film behind every route */
 body{position:relative;isolation:isolate}
-body>*:not(.app-atmosphere){position:relative;z-index:1}
+body>*:not(.app-atmosphere):not(.app-bottom-navigation){position:relative;z-index:1}
 .app-atmosphere{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:#050706}
 .app-atmosphere-image{position:absolute;inset:-2%;background-size:cover;background-position:center 45%;filter:saturate(1.08) brightness(.9) contrast(1.03);will-change:opacity,transform}
 .app-atmosphere-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(3,8,6,.22),rgba(3,8,6,.42) 48%,rgba(5,7,6,.78) 100%),linear-gradient(90deg,rgba(3,8,6,.22),transparent 78%)}
@@ -44,3 +44,6 @@ body>*:not(.app-atmosphere){position:relative;z-index:1}
 
 /* Keep the cinematic layer visible while all app content stays above it. */
 body>*:not(.app-atmosphere){z-index:1}.app-atmosphere{z-index:0}.app-auth-entry{z-index:9999;background:rgba(5,18,11,.94);border-color:rgba(140,255,201,.7);color:#fff;box-shadow:0 8px 34px rgba(0,0,0,.42),0 0 22px rgba(0,229,138,.12)}
+
+/* Persistent bottom navigation safe-area spacing */
+main{padding-bottom:max(8rem,calc(7rem + env(safe-area-inset-bottom)))}

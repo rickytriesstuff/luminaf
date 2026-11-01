@@ -2,6 +2,7 @@ import {expect,test} from "@playwright/test";
 test("dashboard renders core wellness navigation",async({page})=>{
  await page.goto("./");
  await expect(page.getByRole("heading",{name:/your day, in balance/i})).toBeVisible();
+ await expect(page.getByRole("navigation",{name:"Main navigation"})).toBeVisible();
  await expect(page.getByRole("link",{name:/habit garden/i}).first()).toBeVisible();
  await expect(page.getByRole("link",{name:/nutrition overview/i})).toBeVisible();
 });
@@ -17,7 +18,7 @@ test("GitHub Pages internal navigation stays inside the project path",async({pag
  await expect(profile).toHaveAttribute("href",/luminaf\/profile\/$/);
  await profile.click();
  await expect(page).toHaveURL(/\/luminaf\/profile\/$/);
- await expect(page.getByRole("heading",{name:"Profile & settings"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Profile"})).toBeVisible();
 });
 test("subscription and reminder settings pages render",async({page})=>{
  await page.goto("subscribe/");
@@ -34,13 +35,11 @@ test("health check-in keeps its medical disclaimer visible",async({page})=>{
  await expect(page.getByText(/not medical advice or a diagnosis/i)).toBeVisible();
  await expect(page.getByText(/do not wait for this tool/i)).toBeVisible();
 });
-test("meal journal renders scanner and manual food entry",async({page})=>{
+test("meal scanner enforces a visible five-scan daily allowance",async({page})=>{
  await page.goto("meals/");
- await expect(page.getByRole("heading",{name:"Log a meal"})).toBeVisible();
- await expect(page.getByRole("heading",{name:"Scan what’s on your plate"})).toBeVisible();
- await expect(page.getByText(/Add a meal photo/i)).toBeVisible();
- await expect(page.getByLabel("Food name")).toBeVisible();
- await expect(page.getByRole("button",{name:"Save meal"})).toBeDisabled();
+ await expect(page.getByRole("heading",{name:"Meal scanner"})).toBeVisible();
+ await expect(page.getByText(/photograph a meal and let ai estimate the foods, portions and nutrition/i)).toBeVisible();
+ await expect(page.getByText(/of 5 left today/i)).toBeVisible();
 });
 test("PWA manifest is served beneath the GitHub Pages base path",async({request})=>{
  const response=await request.get("manifest.webmanifest");
@@ -65,9 +64,25 @@ test("progress dashboard renders activity, nutrition and recovery sections",asyn
 });
 test("profile and body pages expose saved account data controls",async({page})=>{
  await page.goto("profile/");
- await expect(page.getByRole("heading",{name:"Profile & settings"})).toBeVisible();
- await expect(page.getByRole("heading",{name:"Your data"})).toBeVisible();
+ await expect(page.getByRole("heading",{name:"Profile"})).toBeVisible();
+ await expect(page.getByRole("link",{name:/Privacy & data/i})).toBeVisible();
  await page.goto("body/");
  await expect(page.getByRole("heading",{name:"Your measurements"})).toBeVisible();
  await expect(page.getByRole("heading",{name:"Measurement history"})).toBeVisible();
+});
+
+test("fitness tracker records manual workout details",async({page})=>{
+ await page.goto("fitness/");
+ await expect(page.getByRole("heading",{name:"Fitness studio"})).toBeVisible();
+ await expect(page.getByText(/Workout time · minutes/i)).toBeVisible();
+ await expect(page.getByText(/Number of sessions/i)).toBeVisible();
+ await expect(page.getByText(/No running timer to remember to stop/i)).toBeVisible();
+});
+test("friends zone exposes social feed, discovery and chats",async({page})=>{
+ await page.goto("friends/");
+ await expect(page.getByRole("heading",{name:"Friends"})).toBeVisible();
+ await expect(page.getByRole("button",{name:/Feed/i})).toBeVisible();
+ await expect(page.getByRole("button",{name:/Discover/i})).toBeVisible();
+ await expect(page.getByRole("button",{name:/Chats/i})).toBeVisible();
+ await expect(page.getByRole("navigation",{name:"Main navigation"})).toBeVisible();
 });

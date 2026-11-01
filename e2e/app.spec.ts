@@ -5,6 +5,7 @@ test("dashboard renders core wellness navigation",async({page})=>{
  await expect(page.getByRole("link",{name:/habit garden/i}).first()).toBeVisible();
  await expect(page.getByRole("link",{name:/nutrition overview/i})).toBeVisible();
  await expect(page.getByRole("link",{name:/luminaf plus/i})).toBeVisible();
+ await expect(page.getByRole("navigation",{name:"Main navigation"})).toBeVisible();
 });
 test("health check-in keeps its medical disclaimer visible",async({page})=>{
  await page.goto("/health");
@@ -24,4 +25,20 @@ test("PWA manifest is served",async({request})=>{
  const manifest=await response.json();
  expect(manifest.name).toBe("Luminaf");
  expect(manifest.display).toBe("standalone");
+});
+
+test("fitness tracker records manual workout details",async({page})=>{
+ await page.goto("/fitness");
+ await expect(page.getByRole("heading",{name:"Fitness studio"})).toBeVisible();
+ await expect(page.getByText(/Workout time · minutes/i)).toBeVisible();
+ await expect(page.getByText(/Number of sessions/i)).toBeVisible();
+ await expect(page.getByText(/No running timer to remember to stop/i)).toBeVisible();
+});
+test("friends zone exposes social feed, discovery and chats",async({page})=>{
+ await page.goto("/friends");
+ await expect(page.getByRole("heading",{name:"Friends"})).toBeVisible();
+ await expect(page.getByRole("button",{name:/Feed/i})).toBeVisible();
+ await expect(page.getByRole("button",{name:/Discover/i})).toBeVisible();
+ await expect(page.getByRole("button",{name:/Chats/i})).toBeVisible();
+ await expect(page.getByRole("navigation",{name:"Main navigation"})).toBeVisible();
 });
